@@ -1,0 +1,40 @@
+name: Opdater elspotpriser
+
+on:
+  schedule:
+    # Kører hver time, 5 minutter efter hel time (giver Energinet tid til at have data klar)
+    - cron: '5 * * * *'
+  workflow_dispatch: {}  # Tillader manuel kørsel fra GitHub's "Actions" fane
+
+permissions:
+  contents: write
+
+jobs:
+  hent-spotpriser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hent repository
+        uses: actions/checkout@v4
+
+      - name: Hent spotpriser fra Energinet (DK1 og DK2)
+        run: |
+          curl -s "https://api.energidataservice.dk/dataset/Elspotprices?start=now-P1D&end=now&filter=%7B%22PriceArea%22%3A%5B%22DK1%22%2C%22DK2%22%5D%7D&sort=HourUTC%20desc&limit=48" -o spotpriser.json
+
+      - name: Tilføj opdateringstidspunkt
+        run: |
+          python3 -c "
+          import json, datetime
+          with open('spotpriser.json') as f:
+              data = json.load(f)
+          data['opdateret'] = datetime.datetime.utcnow().isoformat() + 'Z'
+          with open('spotpriser.json', 'w') as f:
+              json.dump(data, f, ensure_ascii=False)
+          "
+
+      - name: Gem ændringer i repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add spotpriser.json
+          git diff --staged --quiet || git commit -m "Opdater spotpriser ($(date -u +'%Y-%m-%d %H:%M UTC'))"
+          git push
