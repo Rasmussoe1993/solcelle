@@ -951,14 +951,14 @@ async function hentSpotpris(){
     }
 
     const senesteRecord = records[0];
-    const senestePrisOreKwh = senesteRecord.SpotPriceDKK / 10; // DKK/MWh -> øre/kWh
+    const senestePrisOreKwh = senesteRecord.DayAheadPriceDKK / 10; // DKK/MWh -> øre/kWh
     const senestePrisKrKwh = senestePrisOreKwh / 100;
 
-    const gnsOreKwh = records.reduce((sum,r)=>sum+r.SpotPriceDKK,0) / records.length / 10;
+    const gnsOreKwh = records.reduce((sum,r)=>sum+r.DayAheadPriceDKK,0) / records.length / 10;
     const gnsKrKwh = gnsOreKwh / 100;
 
-    const minKr = Math.min(...records.map(r=>r.SpotPriceDKK))/10/100;
-    const maxKr = Math.max(...records.map(r=>r.SpotPriceDKK))/10/100;
+    const minKr = Math.min(...records.map(r=>r.DayAheadPriceDKK))/10/100;
+    const maxKr = Math.max(...records.map(r=>r.DayAheadPriceDKK))/10/100;
 
     const samletKob = gnsKrKwh + tillaeg;
     $('e_kob').value = samletKob.toFixed(2);
@@ -966,7 +966,7 @@ async function hentSpotpris(){
     const opdateret = data.opdateret ? new Date(data.opdateret).toLocaleString('da-DK') : 'ukendt';
 
     result.innerHTML = `<div class="flag ok"><span class="ic">✓</span><span>
-      ${area} — seneste time (${senesteRecord.HourDK.replace('T',' kl. ').slice(0,16)}): <b>${fmt(senestePrisKrKwh,2)} kr/kWh</b> (spotpris).<br>
+      ${area} — seneste time (${senesteRecord.TimeDK.replace('T',' kl. ').slice(0,16)}): <b>${fmt(senestePrisKrKwh,2)} kr/kWh</b> (spotpris).<br>
       Snit seneste ${records.length} timer: ${fmt(gnsKrKwh,2)} kr/kWh (spænd ${fmt(minKr,2)}–${fmt(maxKr,2)}).<br>
       Indsat som eltakst køb: ${fmt(gnsKrKwh,2)} + ${fmt(tillaeg,2)} tillæg = <b>${fmt(samletKob,2)} kr/kWh</b>.<br>
       <span style="font-size:10.5px;color:var(--ink-dim)">Data opdateret: ${opdateret}</span>
