@@ -1,0 +1,15 @@
+{
+  "opdateret": "2026-06-16",
+  "gyldig_fra": "2026-04-01",
+  "gyldig_til": "2026-09-30",
+  "kilde": "https://energinet.dk/el/elmarkedet/tariffer/aktuelle-tariffer/",
+  "noter": "Energinets tariffer + statslig elafgift + landsgennemsnit for lokal nettarif. Lokal nettarif varierer pr. netoperatør (Radius/N1/Cerius/TREFOR osv.) — opdatér denne fil ved behov for konkret område.",
+  "komponenter_kr_kwh": {
+    "energinet_systemtarif": 0.061,
+    "energinet_transmissionstarif": 0.069,
+    "energinet_balancetarif_forbrug": 0.00229,
+    "elafgift_statslig": 0.761,
+    "lokal_nettarif_gennemsnit": 0.300
+  },
+  "moms_pct": 25
+}
