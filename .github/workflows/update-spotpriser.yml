@@ -18,7 +18,7 @@ jobs:
 
       - name: Hent spotpriser fra Energinet (DK1 og DK2)
         run: |
-          curl -s "https://api.energidataservice.dk/dataset/Elspotprices?start=now-P1D&end=now&filter=%7B%22PriceArea%22%3A%5B%22DK1%22%2C%22DK2%22%5D%7D&sort=HourUTC%20desc&limit=48" -o spotpriser.json
+          curl -s "https://api.energidataservice.dk/dataset/DayAheadPrices?start=now-P1D&end=now&filter=%7B%22PriceArea%22%3A%5B%22DK1%22%2C%22DK2%22%5D%7D&sort=TimeUTC%20desc&limit=48" -o spotpriser.json
 
       - name: Tilføj opdateringstidspunkt
         run: |
