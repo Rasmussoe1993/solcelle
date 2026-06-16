@@ -533,7 +533,7 @@
         <div class="panel-body">
 
           <fieldset style="border-color:var(--grid)">
-            <legend style="color:var(--grid)">Hent dagsaktuel elpris <span class="ihelp" tabindex="0">?<span class="tip" style="border-color:var(--grid)"><b>Spotpris fra Energinet</b>Henter de seneste spotpriser (Elspotprices) direkte fra Energinets gratis, åbne API — ingen login eller nøgle nødvendig. Spotprisen er ekskl. moms, elafgift og nettariffer, så læg disse til for at få den pris I reelt betaler/sparer pr. kWh.</span></span></legend>
+            <legend style="color:var(--grid)">Hent dagsaktuel elpris <span class="ihelp" tabindex="0">?<span class="tip" style="border-color:var(--grid)"><b>Spotpris fra Energinet</b>Henter de seneste spotpriser fra en lokal fil (spotpriser.json), som opdateres automatisk hver time af et GitHub Actions-workflow i samme repository. Det undgår CORS-begrænsninger, fordi Energinets server ikke tillader direkte browserkald. Spotprisen er ekskl. moms, elafgift og nettariffer, så læg disse til for at få den pris I reelt betaler/sparer pr. kWh.</span></span></legend>
             <div class="row2">
               <div class="field"><label>Prisområde</label>
                 <select class="input" id="spot_area">
@@ -928,21 +928,28 @@ async function hentSpotpris(){
   btn.disabled = true;
 
   try{
-    const filterParam = encodeURIComponent(JSON.stringify({PriceArea:[area]}));
-    const sortParam = encodeURIComponent('HourUTC desc');
-    const url = `https://api.energidataservice.dk/dataset/Elspotprices?start=now-P1D&end=now&filter=${filterParam}&sort=${sortParam}&limit=24`;
-    const res = await fetch(url);
+    // Henter spotpriser fra spotpriser.json i samme repository (opdateret automatisk hver time
+    // via GitHub Actions). Dette undgår CORS, fordi filen ligger på samme origin som denne side.
+    // Cache-bust med tidsstempel, så browseren ikke viser en gammel, cachet version.
+    const res = await fetch('./spotpriser.json?_=' + Date.now());
     if(!res.ok) throw new Error('HTTP '+res.status);
     const data = await res.json();
 
     if(!data.records || data.records.length===0){
-      result.innerHTML = `<div class="flag warn"><span class="ic">!</span><span>Ingen prisdata fundet for ${area} i den seneste periode.</span></div>`;
+      result.innerHTML = `<div class="flag warn"><span class="ic">!</span><span>Ingen prisdata fundet i spotpriser.json. Tjek at GitHub Actions-workflowet kører (se "Actions"-fanen i repositoryet).</span></div>`;
       status.textContent='';
       btn.disabled=false;
       return;
     }
 
-    const records = data.records;
+    const records = data.records.filter(r => r.PriceArea === area);
+    if(records.length===0){
+      result.innerHTML = `<div class="flag warn"><span class="ic">!</span><span>Ingen data for ${area} i den hentede fil.</span></div>`;
+      status.textContent='';
+      btn.disabled=false;
+      return;
+    }
+
     const senesteRecord = records[0];
     const senestePrisOreKwh = senesteRecord.SpotPriceDKK / 10; // DKK/MWh -> øre/kWh
     const senestePrisKrKwh = senestePrisOreKwh / 100;
@@ -956,19 +963,18 @@ async function hentSpotpris(){
     const samletKob = gnsKrKwh + tillaeg;
     $('e_kob').value = samletKob.toFixed(2);
 
+    const opdateret = data.opdateret ? new Date(data.opdateret).toLocaleString('da-DK') : 'ukendt';
+
     result.innerHTML = `<div class="flag ok"><span class="ic">✓</span><span>
       ${area} — seneste time (${senesteRecord.HourDK.replace('T',' kl. ').slice(0,16)}): <b>${fmt(senestePrisKrKwh,2)} kr/kWh</b> (spotpris).<br>
       Snit seneste ${records.length} timer: ${fmt(gnsKrKwh,2)} kr/kWh (spænd ${fmt(minKr,2)}–${fmt(maxKr,2)}).<br>
-      Indsat som eltakst køb: ${fmt(gnsKrKwh,2)} + ${fmt(tillaeg,2)} tillæg = <b>${fmt(samletKob,2)} kr/kWh</b>.
+      Indsat som eltakst køb: ${fmt(gnsKrKwh,2)} + ${fmt(tillaeg,2)} tillæg = <b>${fmt(samletKob,2)} kr/kWh</b>.<br>
+      <span style="font-size:10.5px;color:var(--ink-dim)">Data opdateret: ${opdateret}</span>
     </span></div>`;
     status.textContent='';
     calcAll();
   } catch(e){
-    const isCorsLike = e.message === 'Failed to fetch' || e.name === 'TypeError';
-    const besked = isCorsLike
-      ? 'Browseren kunne ikke hente data fra Energinets server. Det er typisk en CORS-begrænsning (serveren tillader ikke kald direkte fra denne side), men kan også skyldes en adblocker eller ingen internetforbindelse. Tjek browserens udviklerkonsol (F12 → Console) for den nøjagtige fejl, eller indtast eltaksten manuelt nedenfor.'
-      : `Kunne ikke hente spotpris (${e.message}). Tjek internetforbindelse, eller indtast eltaksten manuelt nedenfor.`;
-    result.innerHTML = `<div class="flag warn"><span class="ic">!</span><span>${besked}</span></div>`;
+    result.innerHTML = `<div class="flag warn"><span class="ic">!</span><span>Kunne ikke hente spotpriser.json (${e.message}). Tjek at filen findes i samme mappe som denne side, og at GitHub Actions-workflowet har kørt mindst én gang (se "Actions"-fanen i repositoryet). Indtast eltaksten manuelt nedenfor i mellemtiden.</span></div>`;
     status.textContent='';
   }
   btn.disabled = false;
