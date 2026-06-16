@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solcelle­beregner — Afdelingsværktøj</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0e1726; --panel:#15233b; --panel-2:#1c2f4d; --line:#284167;
+    --ink:#eaf1fb; --ink-dim:#9db3d4; --sun:#ffc24b; --sun-deep:#f59e0b;
+    --grid:#3ad6c0; --bad:#ff7a7a; --good:#6ee7a8; --radius:14px;
+    --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,monospace;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box}html,body{margin:0}
+  body{background:radial-gradient(900px 500px at 85% -10%, rgba(255,194,75,.10), transparent 60%),var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased;padding:0 0 80px}
+  .wrap{max-width:1240px;margin:0 auto;padding:0 24px}
+
+  header{border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(255,194,75,.05),transparent);padding:28px 0 24px;margin-bottom:26px}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--sun);display:flex;gap:10px;align-items:center;margin-bottom:12px}
+  .eyebrow::before{content:"";width:26px;height:1px;background:var(--sun)}
+  h1{margin:0;font-size:clamp(26px,4vw,38px);font-weight:800;letter-spacing:-.02em;line-height:1.05}
+  h1 .sun{color:var(--sun)}
+  .sub{color:var(--ink-dim);margin-top:9px;max-width:66ch;font-size:13.5px}
+  .formula-strip{display:flex;gap:18px;margin-top:14px;flex-wrap:wrap}
+  .fchip{font-family:var(--mono);font-size:11.5px;background:#0c1626;border:1px solid var(--line);border-radius:8px;padding:6px 11px;color:var(--ink-dim)}
+  .fchip b{color:var(--sun)}
+
+  .export-bar{position:sticky;top:0;z-index:40;background:rgba(14,23,38,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);margin:0 -24px 22px;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+  .export-bar .proj-name{background:transparent;border:none;color:var(--ink);font-size:14px;font-weight:700;font-family:var(--sans);padding:4px 0;border-bottom:1px dashed var(--line);min-width:200px}
+  .export-bar .proj-name:focus{outline:none;border-bottom-color:var(--sun)}
+  .export-bar .proj-name::placeholder{color:#5f779c;font-weight:400}
+  .btn.export{background:var(--good);color:#0e1726;display:flex;align-items:center;gap:7px}
+  .btn.export:hover{filter:brightness(1.08)}
+
+  .steps{display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--line);overflow-x:auto}
+  .step{background:none;border:none;color:var(--ink-dim);font-family:var(--sans);font-size:13px;font-weight:600;padding:11px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:.15s;display:flex;align-items:center;gap:7px}
+  .step .num{font-family:var(--mono);font-size:10px;width:18px;height:18px;border-radius:50%;background:var(--panel-2);display:flex;align-items:center;justify-content:center;color:var(--ink-dim)}
+  .step:hover{color:var(--ink)}
+  .step.on{color:var(--sun);border-bottom-color:var(--sun)}
+  .step.on .num{background:var(--sun);color:#0e1726}
+  .stepview{display:none}
+  .stepview.on{display:block}
+
+  .grid2{display:grid;grid-template-columns:1.05fr .95fr;gap:24px;align-items:start}
+  .grid2.even{grid-template-columns:1fr 1fr}
+  @media(max-width:900px){.grid2,.grid2.even{grid-template-columns:1fr}}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .panel-head{padding:13px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:var(--panel-2)}
+  .panel-head h2{margin:0;font-size:12.5px;letter-spacing:.04em;text-transform:uppercase;font-weight:700;color:var(--ink)}
+  .panel-body{padding:18px}
+
+  .field{margin-bottom:15px}
+  .field:last-child{margin-bottom:0}
+  label{display:block;font-size:12px;color:var(--ink-dim);margin-bottom:6px;font-weight:600;letter-spacing:.01em}
+  label .hint{color:#5f779c;font-weight:400;font-family:var(--mono);font-size:10.5px}
+  .input{width:100%;background:#0c1626;border:1px solid var(--line);color:var(--ink);padding:9px 11px;border-radius:9px;font-size:13.5px;font-family:var(--mono);transition:border-color .15s,box-shadow .15s}
+  .input:focus{outline:none;border-color:var(--sun);box-shadow:0 0 0 3px rgba(255,194,75,.15)}
+  select.input{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--ink-dim) 50%),linear-gradient(135deg,var(--ink-dim) 50%,transparent 50%);background-position:calc(100% - 17px) 17px,calc(100% - 12px) 17px;background-size:5px 5px;background-repeat:no-repeat;padding-right:32px}
+  select.input option{background:#15233b}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .unit{position:relative}
+  .unit .u{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:11px;color:#5f779c;pointer-events:none}
+
+  fieldset{border:1px dashed var(--line);border-radius:10px;padding:14px;margin:0 0 16px}
+  fieldset legend{font-size:11px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--sun);padding:0 8px}
+
+  .inline-result{background:#0c1626;border:1px solid var(--sun);border-radius:10px;padding:12px 14px;margin-top:14px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .inline-result .lab{font-size:11.5px;color:var(--ink-dim)}
+  .inline-result .v{font-family:var(--mono);font-size:20px;font-weight:700;color:var(--sun)}
+
+  .result-hero{background:linear-gradient(135deg,var(--panel-2),#13233f);border:1px solid var(--line);border-radius:var(--radius);padding:20px;margin-bottom:18px;position:relative;overflow:hidden}
+  .result-hero::after{content:"";position:absolute;right:-40px;top:-40px;width:160px;height:160px;background:radial-gradient(circle,rgba(255,194,75,.18),transparent 70%)}
+  .big{font-size:13px;color:var(--ink-dim);margin:0 0 4px;font-weight:600}
+  .kw{font-family:var(--mono);font-size:38px;font-weight:700;color:var(--sun);line-height:1;letter-spacing:-.02em}
+  .kw small{font-size:16px;color:var(--ink-dim);font-weight:400;margin-left:4px}
+  .hero-sub{display:flex;gap:20px;margin-top:14px;flex-wrap:wrap}
+  .hero-sub div{font-size:11.5px;color:var(--ink-dim)}
+  .hero-sub b{display:block;font-family:var(--mono);font-size:16px;color:var(--ink);font-weight:600}
+
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .stat-grid.cols3{grid-template-columns:1fr 1fr 1fr}
+  .stat{background:#0c1626;border:1px solid var(--line);border-radius:10px;padding:13px 14px}
+  .stat .lab{font-size:10.5px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:5px}
+  .stat .val{font-family:var(--mono);font-size:19px;font-weight:600;color:var(--ink)}
+  .stat .val.g{color:var(--good)}.stat .val.r{color:var(--bad)}.stat .val.grid{color:var(--grid)}
+  .stat .note{font-size:10.5px;color:#5f779c;margin-top:3px;font-family:var(--mono)}
+
+  .flags{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+  .flag{font-size:12.5px;padding:9px 12px;border-radius:9px;display:flex;gap:9px;align-items:flex-start;line-height:1.4}
+  .flag.warn{background:rgba(255,122,122,.10);border:1px solid rgba(255,122,122,.3);color:#ffc9c9}
+  .flag.ok{background:rgba(110,231,168,.08);border:1px solid rgba(110,231,168,.25);color:#bff0d2}
+  .flag.info{background:rgba(58,214,192,.07);border:1px solid rgba(58,214,192,.22);color:#b8efe6}
+  .flag .ic{font-family:var(--mono);font-weight:700;flex-shrink:0}
+
+  .btn{background:var(--sun);color:#0e1726;border:none;padding:10px 16px;border-radius:9px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--sans)}
+  .btn:hover{filter:brightness(1.08)}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink-dim);font-weight:600}
+  .btn.ghost:hover{border-color:var(--sun);color:var(--ink)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .nav-row{display:flex;justify-content:space-between;margin-top:18px;gap:10px}
+
+  table.simple{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+  table.simple th{text-align:left;color:var(--ink-dim);font-weight:600;padding:5px 8px;border-bottom:1px solid var(--line);font-size:10.5px;text-transform:uppercase}
+  table.simple td{padding:5px 8px;border-bottom:1px solid #1a2d45;font-family:var(--mono)}
+  table.simple tr:hover td{background:#0c1626}
+
+  .timetable{max-height:280px;overflow-y:auto;border:1px solid var(--line);border-radius:9px}
+  .timetable table{width:100%;border-collapse:collapse;font-size:12px}
+  .timetable th{position:sticky;top:0;background:var(--panel-2);padding:7px 10px;text-align:left;font-size:10.5px;color:var(--ink-dim);text-transform:uppercase}
+  .timetable td{padding:4px 10px;border-bottom:1px solid #1a2d45}
+  .timetable input{width:70px;background:#0c1626;border:1px solid var(--line);color:var(--ink);padding:4px 6px;border-radius:5px;font-family:var(--mono);font-size:12px}
+
+  /* Info / help system */
+  .ihelp{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);font-family:var(--mono);font-size:10px;font-weight:700;line-height:1;cursor:help;margin-left:5px;flex-shrink:0;position:relative;vertical-align:-1px;transition:.15s}
+  .ihelp:hover{background:var(--sun);color:#0e1726;border-color:var(--sun)}
+  .ihelp .tip{position:absolute;left:50%;bottom:calc(100% + 8px);transform:translateX(-50%) translateY(4px);width:270px;background:#0a1220;border:1px solid var(--sun);border-radius:9px;padding:10px 12px;font-size:11.5px;font-weight:400;line-height:1.5;color:var(--ink);font-family:var(--sans);text-align:left;opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+  .ihelp .tip::after{content:"";position:absolute;top:100%;left:50%;transform:translateX(-50%);border:6px solid transparent;border-top-color:var(--sun)}
+  .ihelp:hover .tip, .ihelp:focus .tip{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+  .ihelp .tip b{color:var(--sun);display:block;margin-bottom:3px;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  @media(max-width:600px){.ihelp .tip{width:200px;left:0;transform:translateX(0) translateY(4px)}.ihelp:hover .tip{transform:translateX(0) translateY(0)}}
+
+  /* Selector cards (mounting system, panel size, inverter) */
+  .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:6px}
+  .pick-card{background:#0c1626;border:2px solid var(--line);border-radius:10px;padding:13px;cursor:pointer;transition:.15s;text-align:left}
+  .pick-card:hover{border-color:#3a557e}
+  .pick-card.on{border-color:var(--sun);background:rgba(255,194,75,.08)}
+  .pick-card .pc-title{font-size:13px;font-weight:700;color:var(--ink);margin-bottom:4px}
+  .pick-card .pc-sub{font-size:11px;color:var(--ink-dim);font-family:var(--mono);line-height:1.5}
+  .pick-card .pc-icon{font-size:22px;margin-bottom:6px;display:block}
+
+  /* House SVG diagram */
+  .house-wrap{background:#0c1626;border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:16px}
+  .house-svg{display:block;margin:0 auto;max-width:100%}
+  .house-svg .dim-line{stroke:var(--sun);stroke-width:1.5}
+  .house-svg .dim-text{fill:var(--sun);font-family:var(--mono);font-size:13px;font-weight:600}
+  .house-svg .struct{fill:#1c2f4d;stroke:var(--line);stroke-width:1.5}
+  .house-svg .roof{fill:#223a5e;stroke:var(--grid);stroke-width:2}
+  .house-svg .panel-row{fill:#284167;stroke:#3ad6c0;stroke-width:1;opacity:.85}
+  .house-svg .label{fill:var(--ink-dim);font-family:var(--sans);font-size:11px}
+  .house-legend{display:flex;gap:16px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+  .house-legend span{font-size:11px;color:var(--ink-dim);display:flex;align-items:center;gap:6px}
+  .house-legend .sw{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+  footer{margin-top:30px;padding-top:20px;border-top:1px solid var(--line);font-size:11px;color:#5f779c;font-family:var(--mono);line-height:1.7}
+  footer b{color:var(--ink-dim)}
+  .pill{display:inline-block;font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid var(--line);color:var(--ink-dim);margin-right:6px}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">Afdelingsværktøj · El</div>
+    <h1>Solcelle<span class="sun">·</span>beregner</h1>
+    <p class="sub">Dimensionering efter Eår = Y · P · A. Tagflade, standardpaneler, montering, elsikkerhed og business case i ét projekteringsflow.</p>
+    <div class="formula-strip">
+      <div class="fchip"><b>Eår</b> = Y · P · A &nbsp;[kWh/år]</div>
+      <div class="fchip"><b>A</b> = f₀ · f<sub>skygge</sub> · f<sub>sol</sub></div>
+      <div class="fchip"><b>Y</b> = 1000 kWh/kWp (standardydelse)</div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="export-bar">
+    <input class="proj-name" id="proj_navn" type="text" placeholder="Projektnavn / adresse (vises i Excel-eksporten)">
+    <button class="btn export" onclick="exportExcel()">⬇ Eksportér til Excel</button>
+  </div>
+
+  <div class="steps">
+    <button class="step on" data-s="1"><span class="num">1</span>Tagflade &amp; paneler</button>
+    <button class="step" data-s="2"><span class="num">2</span>Anlægsfaktor A</button>
+    <button class="step" data-s="3"><span class="num">3</span>Streng &amp; inverter</button>
+    <button class="step" data-s="4"><span class="num">4</span>Montering &amp; vægt</button>
+    <button class="step" data-s="5"><span class="num">5</span>Elsikkerhed</button>
+    <button class="step" data-s="6"><span class="num">6</span>Forbrug</button>
+    <button class="step" data-s="7"><span class="num">7</span>Business case</button>
+  </div>
+
+  <!-- ============ STEP 1: TAGFLADE & PANELER ============ -->
+  <div class="stepview on" id="s1">
+
+    <div class="house-wrap">
+      <svg class="house-svg" id="house-svg" viewBox="0 0 760 340" width="100%" height="340" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="house-legend">
+        <span><i class="sw" style="background:#1c2f4d"></i> Mur/gavl</span>
+        <span><i class="sw" style="background:#223a5e;border:1px solid #3ad6c0"></i> Tagflade</span>
+        <span><i class="sw" style="background:#284167;border:1px solid #3ad6c0"></i> Paneler (estimat)</span>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-head"><h2>Tagflade — mål</h2></div>
+        <div class="panel-body">
+          <fieldset>
+            <legend>Indtast mål direkte på huset</legend>
+            <div class="row2">
+              <div class="field"><label data-help="tagbredde">Tagbredde <span class="hint">vandret, gavl-til-gavl</span></label><div class="unit"><input class="input" id="t_bredde" type="number" value="1316" oninput="calcAll()"><span class="u">cm</span></div></div>
+              <div class="field"><label data-help="taghaeldning">Taghældning</label><div class="unit"><input class="input" id="t_haeld" type="number" value="15" oninput="calcAll()"><span class="u">°</span></div></div>
+            </div>
+            <div class="field"><label data-help="tagdybde">Taghøjde langs skråning <span class="hint">fra kip til tagfod</span></label><div class="unit"><input class="input" id="t_hoejde_flad" type="number" value="454" oninput="calcAll()"><span class="u">cm</span></div></div>
+          </fieldset>
+
+          <fieldset style="border-color:var(--grid)">
+            <legend style="color:var(--grid)">Find tag automatisk <span class="ihelp" tabindex="0">?<span class="tip" style="border-color:var(--grid)"><b>Find tag automatisk</b>Slår adressen op via Google Solar API (gennem afdelingens proxy-server) og udfylder taghældning og orienteringsfaktor. Kræver at proxyen er sat op — se separat kravspecifikation. Indtil da vises en besked i stedet for et resultat.</span></span></legend>
+            <input class="input" id="addr_input" type="text" placeholder="fx Agerskovvej 24, 2610 Rødovre" style="margin-bottom:10px">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <button class="btn" id="findtag_btn" onclick="findTagAutomatisk()" type="button">⚡ Find tag automatisk</button>
+              <span id="addr_status" style="font-size:11.5px;color:var(--ink-dim);font-family:var(--mono)"></span>
+            </div>
+            <div id="addr_result" style="margin-top:10px"></div>
+          </fieldset>
+
+          <div class="inline-result">
+            <div><div class="lab">Paneler pr. række</div><div class="v" id="r_perrow">—</div></div>
+            <div><div class="lab">Antal rækker</div><div class="v" id="r_rows">—</div></div>
+            <div><div class="lab">Kapacitet i alt</div><div class="v" id="r_cap">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel">
+          <div class="panel-head"><h2>Solcellemodul — vælg standardstørrelse</h2></div>
+          <div class="panel-body">
+            <div class="card-grid" id="panel-cards"></div>
+            <p style="font-size:11px;color:#5f779c;margin:12px 0 0">Værdier er typiske for full-black mono-paneler på det danske marked 2026. Klik for at vælge — felterne nedenfor opdateres automatisk og kan finjusteres hvis et konkret datablad afviger.</p>
+            <div class="row3" style="margin-top:12px">
+              <div class="field"><label data-help="stc">Pmax (STC)</label><div class="unit"><input class="input" id="m_pmax" type="number" value="440" oninput="calcAll()"><span class="u">Wp</span></div></div>
+              <div class="field"><label data-help="uoc">Uoc</label><div class="unit"><input class="input" id="m_uoc" type="number" value="41.2" step="0.01" oninput="calcAll()"><span class="u">V</span></div></div>
+              <div class="field"><label data-help="isc">Isc</label><div class="unit"><input class="input" id="m_isc" type="number" value="13.6" step="0.01" oninput="calcAll()"><span class="u">A</span></div></div>
+            </div>
+            <div class="row2" style="margin-top:6px">
+              <div class="field"><label>Panelmål (H×B) <span class="hint">sat af valgt panel</span></label><div class="unit"><input class="input" id="p_h" type="number" value="182" oninput="calcAll()"><span class="u">×113cm</span></div></div>
+              <div class="field"><label>Panelvægt <span class="hint">til vægtberegning trin 4</span></label><div class="unit"><input class="input" id="p_vaegt" type="number" value="22" step="0.5" oninput="calcAll()"><span class="u">kg</span></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" style="margin-top:16px">
+          <div class="panel-head"><h2>Anlægsstørrelse (DC)</h2></div>
+          <div class="panel-body">
+            <fieldset style="margin:0">
+              <legend>Beslag/kant <span class="hint">til pakke-beregning</span></legend>
+              <div class="row2">
+                <div class="field"><label>Afstand til tagkanter</label><div class="unit"><input class="input" id="p_kant" type="number" value="40" oninput="calcAll()"><span class="u">cm</span></div></div>
+                <div class="field"><label>Beslagafstand</label><div class="unit"><input class="input" id="p_beslag" type="number" value="3" oninput="calcAll()"><span class="u">cm</span></div></div>
+              </div>
+            </fieldset>
+            <div class="field"><label>Antal paneler installeret <span class="hint">≤ kapacitet ovenfor</span></label><input class="input" id="n_paneler" type="number" value="40" oninput="calcAll()"></div>
+            <div class="inline-result">
+              <div><div class="lab">Anlægsstørrelse P</div><div class="v" id="r_kwp">— kWp</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="nav-row"><span></span><button class="btn" onclick="goStep(2)">Næste: Anlægsfaktor A →</button></div>
+  </div>
+
+  <!-- ============ STEP 2: ANLÆGSFAKTOR ============ -->
+  <div class="stepview" id="s2">
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-head"><h2 data-help="fo">f₀ — Orienteringsfaktor</h2></div>
+        <div class="panel-body">
+          <p style="font-size:12px;color:var(--ink-dim);margin:0 0 12px">Bedst i DK: 40° hældning, stik syd kl. 13. Aflæs afvigelse fra syd og taghældning, fx via Google Maps / DinGeo / Weblager.</p>
+          <div class="row2">
+            <div class="field"><label>Afvigelse fra syd</label><div class="unit"><input class="input" id="f_drej" type="number" value="0" min="0" max="180" oninput="calcAll()"><span class="u">°</span></div></div>
+            <div class="field"><label>Taghældning <span class="hint">bruges også her</span></label><div class="unit"><input class="input" id="f_haeld2" type="number" value="15" oninput="syncHaeld()"><span class="u">°</span></div></div>
+          </div>
+          <div class="field">
+            <label>f₀ — manuel overstyring <span class="hint">aflæst fra diagram/tabel, valgfri</span></label>
+            <input class="input" id="f_o_manual" type="number" step="0.01" placeholder="auto-beregnet, eller indtast aflæst værdi" oninput="calcAll()">
+          </div>
+          <div class="inline-result"><div><div class="lab">f₀ (anvendt)</div><div class="v" id="r_fo">—</div></div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2 data-help="fskygge">f<sub>skygge</sub> — Skyggefaktor</h2></div>
+        <div class="panel-body">
+          <p style="font-size:12px;color:var(--ink-dim);margin:0 0 12px">Vurdér ud fra Google Street View / besøg på stedet. 0 = total mørke, 1 = ingen skygge.</p>
+          <div class="field">
+            <label>Skyggetype</label>
+            <select class="input" id="f_skygge_type" onchange="applyShadeType()">
+              <option value="">— Vælg type (sætter typisk værdi) —</option>
+              <option value="0.97">Ingen / ubetydelig skygge (0,97)</option>
+              <option value="0.8">Parabolantenne, lodrette stående moduler (0,8)</option>
+              <option value="0.75">Flagstang (0,75)</option>
+              <option value="0.7">Træ (0,6–0,8, midt 0,7)</option>
+              <option value="0.7">Nabohus øst/vest (0,5–0,9, midt 0,7)</option>
+              <option value="0.7">Nabohus syd, vandrette moduler (0,5–0,9, midt 0,7)</option>
+            </select>
+          </div>
+          <div class="field"><label>f<sub>skygge</sub> — værdi</label><input class="input" id="f_skygge" type="number" value="0.97" step="0.01" min="0" max="1" oninput="calcAll()"></div>
+          <div class="inline-result"><div><div class="lab">f<sub>skygge</sub></div><div class="v" id="r_fs">—</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:18px">
+      <div class="panel-head"><h2 data-help="fsol">f<sub>sol</sub> — Solskinstimefaktor (DMI, 2006–2015)</h2></div>
+      <div class="panel-body">
+        <p style="font-size:12px;color:var(--ink-dim);margin:0 0 12px">f<sub>sol</sub> = lokale solskinstimer ÷ 1750 (landsgennemsnit, DMI-klimatal). Vælg kommune eller indtast eget timetal.</p>
+        <div class="row2">
+          <div class="field">
+            <label>Kommune</label>
+            <select class="input" id="f_kommune" onchange="applyKommune()"></select>
+          </div>
+          <div class="field"><label>Solskinstimer/år <span class="hint">override hvis kendt</span></label><input class="input" id="f_timer" type="number" value="1750" oninput="calcAll()"></div>
+        </div>
+        <div class="inline-result"><div><div class="lab">f<sub>sol</sub></div><div class="v" id="r_ft">—</div></div></div>
+      </div>
+    </div>
+
+    <div class="result-hero" style="margin-top:18px">
+      <p class="big">Anlægsfaktor A = f₀ · f<sub>skygge</sub> · f<sub>sol</sub></p>
+      <div class="kw" id="r_A">—</div>
+      <div class="hero-sub">
+        <div>f₀<b id="r_A_fo">—</b></div>
+        <div>f<sub>skygge</sub><b id="r_A_fs">—</b></div>
+        <div>f<sub>sol</sub><b id="r_A_ft">—</b></div>
+      </div>
+    </div>
+    <div class="nav-row"><button class="btn ghost" onclick="goStep(1)">← Tagflade</button><button class="btn" onclick="goStep(3)">Næste: Streng &amp; inverter →</button></div>
+  </div>
+
+  <!-- ============ STEP 3: STRENG & INVERTER ============ -->
+  <div class="stepview" id="s3">
+
+    <div class="panel" style="margin-bottom:18px">
+      <div class="panel-head"><h2>Inverterforslag <span style="font-weight:400;color:var(--ink-dim);text-transform:none;font-size:11px">— baseret på anlæggets kWp</span></h2></div>
+      <div class="panel-body">
+        <div id="inverter-suggestions" class="card-grid"></div>
+        <p style="font-size:11px;color:#5f779c;margin:12px 0 0">Forslagene er typestørrelser ud fra AC/DC-ratio ~0,9–1,0 — vælg den der passer bedst, eller indtast egne værdier nedenfor hvis et konkret produkt afviger.</p>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-head"><h2 data-help="panel_vs_streng">Streng­design</h2></div>
+        <div class="panel-body">
+          <div class="field"><label>Antal strenge</label><input class="input" id="i_strenge" type="number" value="2" min="1" oninput="calcAll()"></div>
+          <div class="inline-result">
+            <div><div class="lab">Paneler/streng</div><div class="v" id="r_pps">—</div></div>
+          </div>
+          <p style="font-size:11px;color:#5f779c;margin:10px 0 0">Paneler fordeles ligeligt på strengene (afrundet ned). Rest-paneler bør tilføjes som ekstra streng eller udelades.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Inverter — valgt/indtastet</h2></div>
+        <div class="panel-body">
+          <div class="row2">
+            <div class="field"><label>Maks. spænding pr. streng</label><div class="unit"><input class="input" id="i_umax" type="number" value="1000" oninput="calcAll()"><span class="u">V</span></div></div>
+            <div class="field"><label>Maks. strøm pr. streng (Isc)</label><div class="unit"><input class="input" id="i_imax" type="number" value="18" oninput="calcAll()"><span class="u">A</span></div></div>
+          </div>
+          <div class="field"><label>Sikkerhedsfaktor på Isc <span class="hint">standard 1,25 (DS/HD 60364-7-712)</span></label><input class="input" id="i_sf" type="number" value="1.25" step="0.01" oninput="calcAll()"></div>
+          <div class="field"><label>AC-effekt (mærke/model) <span class="hint">til dokumentation</span></label><input class="input" id="i_navn" type="text" placeholder="fx 10 kW / 3-faset"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="result-hero" style="margin-top:18px">
+      <p class="big">Kontrol af stringdesign</p>
+      <div class="stat-grid" style="margin-top:4px">
+        <div class="stat"><div class="lab" data-help="streng_spaending">Spænding pr. streng (Uoc · n)</div><div class="val" id="r_ustreng">—</div><div class="note" id="r_ustreng_note">mod inverter maks.</div></div>
+        <div class="stat"><div class="lab" data-help="streng_strom">Strøm pr. streng inkl. sikkerhed</div><div class="val" id="r_istreng">—</div><div class="note" id="r_istreng_note">mod inverter maks.</div></div>
+      </div>
+    </div>
+    <div class="flags" id="flags3"></div>
+    <div class="nav-row"><button class="btn ghost" onclick="goStep(2)">← Anlægsfaktor</button><button class="btn" onclick="goStep(4)">Næste: Montering &amp; vægt →</button></div>
+  </div>
+
+  <!-- ============ STEP 4: MONTERING & VÆGT ============ -->
+  <div class="stepview" id="s4">
+
+    <div class="panel" style="margin-bottom:18px">
+      <div class="panel-head"><h2 data-help="monteringssystem">Monteringssystem</h2></div>
+      <div class="panel-body">
+        <div class="card-grid" id="mount-cards"></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-head"><h2>Vægtberegning</h2></div>
+        <div class="panel-body">
+          <div class="row2">
+            <div class="field"><label>Panelvægt (fra trin 1)</label><div class="unit"><input class="input" id="w_panel" type="number" value="22" step="0.5" oninput="calcAll()"><span class="u">kg/stk</span></div></div>
+            <div class="field"><label>Beslag/skinnesystem <span class="hint">ekskl. ballast</span></label><div class="unit"><input class="input" id="w_beslag" type="number" value="4" step="0.5" oninput="calcAll()"><span class="u">kg/panel</span></div></div>
+          </div>
+          <div class="field" id="w_ballast_field"><label>Samlet systemvægt (ballast) <span class="hint">inkl. paneler, beslag og ballaststen — branche-tommelfingerregel</span></label><div class="unit"><input class="input" id="w_ballast_kgm2" type="number" value="17" step="0.5" oninput="calcAll()"><span class="u">kg/m² total</span></div></div>
+        </div>
+      </div>
+
+      <div class="result-hero">
+        <p class="big">Anlæggets samlede vægt</p>
+        <div class="kw" id="r_vaegt_total">— <small>kg</small></div>
+        <div class="hero-sub">
+          <div>Vægt pr. m² tag<b id="r_vaegt_m2">—</b></div>
+          <div>Paneler + beslag<b id="r_vaegt_pb">—</b></div>
+          <div>Ballast (hvis valgt)<b id="r_vaegt_ballast">—</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flags" id="flags4"></div>
+    <div class="nav-row"><button class="btn ghost" onclick="goStep(3)">← Streng &amp; inverter</button><button class="btn" onclick="goStep(5)">Næste: Elsikkerhed →</button></div>
+  </div>
+
+  <!-- ============ STEP 5: ELSIKKERHED ============ -->
+  <div class="stepview" id="s5">
+
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-head"><h2 data-help="produktionsmaaler">Produktionsmåler</h2></div>
+        <div class="panel-body">
+          <p style="font-size:12px;color:var(--ink-dim);margin:0 0 12px">Krav til særskilt produktionsmåler afhænger primært af anlæggets størrelse og tilslutningsform.</p>
+          <div id="meter-result" class="flags"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2 data-help="rcd">Fejlstrømsafbryder (RCD)</h2></div>
+        <div class="panel-body">
+          <div class="field">
+            <label>Inverterens DC-fejlstrømsdokumentation</label>
+            <select class="input" id="e_rcd_doc" onchange="calcAll()">
+              <option value="undoc">Ikke dokumenteret / ukendt</option>
+              <option value="doc">Fabrikant dokumenterer DC-fejlstrøm ≤ 6 mA</option>
+            </select>
+          </div>
+          <div id="rcd-result" class="flags"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:18px">
+      <div class="panel-head"><h2 data-help="tilgangsafbryder">Tilslutningsafbryder / adskillelse</h2></div>
+      <div class="panel-body">
+        <p style="font-size:12px;color:var(--ink-dim);margin:0 0 12px">DS/HD 60364-7-712 kræver midler til at adskille inverteren fra både DC- og AC-side. Vælg hvor adskillelsen placeres.</p>
+        <div class="card-grid" id="disc-cards"></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:18px">
+      <div class="panel-head"><h2>Tilslutningsgebyr — estimat</h2></div>
+      <div class="panel-body">
+        <div class="row2">
+          <div class="field"><label>Anlægstype</label>
+            <select class="input" id="e_anlaegstype" onchange="calcAll()">
+              <option value="villa">Villa/privat</option>
+              <option value="erhverv">Erhverv</option>
+            </select>
+          </div>
+          <div class="field"><label>Eksisterende kapacitetsgrænse <span class="hint">hos netoperatør</span></label><div class="unit"><input class="input" id="e_kapgraense" type="number" value="6" step="0.5" oninput="calcAll()"><span class="u">kW</span></div></div>
+        </div>
+        <div class="inline-result"><div><div class="lab">Estimeret tilslutningsgebyr</div><div class="v" id="r_tilslgebyr">— kr</div></div></div>
+      </div>
+    </div>
+
+    <div class="flags" id="flags5b"></div>
+    <div class="nav-row"><button class="btn ghost" onclick="goStep(4)">← Montering &amp; vægt</button><button class="btn" onclick="goStep(6)">Næste: Forbrug →</button></div>
+  </div>
+
+  <!-- ============ STEP 6: FORBRUG ============ -->
+  <div class="stepview" id="s6">
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-head"><h2>Døgnforbrug <span style="font-weight:400;color:var(--ink-dim);text-transform:none;font-size:11px">— standardprofil eller egne data</span></h2></div>
+        <div class="panel-body">
+          <fieldset style="border-color:var(--grid)">
+            <legend style="color:var(--grid)">Indsæt egne forbrugsdata <span class="ihelp" tabindex="0">?<span class="tip" style="border-color:var(--grid)"><b>Egne data</b>Hvis I har en times-/dagsopgørelse fra elselskabet (CSV med 24 linjer, kl. og kWh), kan I indsætte den her i stedet for standardprofilen. Format: ét tal pr. linje, 24 linjer, eller "tidspunkt;kWh" pr. linje.</span></span></legend>
+            <textarea class="input" id="forbrug_paste" rows="3" placeholder="Indsæt 24 linjer (kl. 00-01 til 23-00), fx:&#10;0.5&#10;0.75&#10;0.5&#10;..." style="font-size:11px;resize:vertical;min-height:60px"></textarea>
+            <div style="display:flex;gap:10px;margin-top:8px">
+              <button class="btn ghost" onclick="applyPastedForbrug()" type="button">↓ Brug disse data</button>
+              <button class="btn ghost" onclick="resetForbrug()" type="button">↺ Nulstil til standardprofil</button>
+            </div>
+          </fieldset>
+          <div class="timetable">
+            <table>
+              <thead><tr><th>Tidsrum</th><th>Forbrug</th></tr></thead>
+              <tbody id="tt-body"></tbody>
+            </table>
+          </div>
+          <div class="inline-result"><div><div class="lab">Sum pr. døgn</div><div class="v" id="r_dogn">— kWh</div></div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Årligt forbrug &amp; egetforbrug</h2></div>
+        <div class="panel-body">
+          <div class="row2">
+            <div class="field"><label>Årligt elforbrug <span class="hint">auto = døgn × 365, kan overstyres</span></label><div class="unit"><input class="input" id="c_aarlig" type="number" value="13870" oninput="calcAll()"><span class="u">kWh/år</span></div></div>
+            <div class="field"><label>Egetforbrugsandel <span class="hint">af produktion, uden batteri</span></label><div class="unit"><input class="input" id="c_egetf" type="number" value="33" min="0" max="100" oninput="calcAll()"><span class="u">%</span></div></div>
+          </div>
+
+          <fieldset style="border-color:var(--grid)">
+            <legend style="color:var(--grid)">Batteri <span class="hint">valgfri</span></legend>
+            <div class="field">
+              <label><input type="checkbox" id="bat_enabled" onchange="calcAll()" style="margin-right:6px;accent-color:var(--grid)">Inkludér batterilager i beregningen</label>
+            </div>
+            <div class="row2">
+              <div class="field"><label>Batterikapacitet</label><div class="unit"><input class="input" id="bat_kwh" type="number" value="10" step="0.5" oninput="calcAll()"><span class="u">kWh</span></div></div>
+              <div class="field"><label>Egetforbrugsandel <span class="hint">med batteri</span></label><div class="unit"><input class="input" id="c_egetf_bat" type="number" value="65" min="0" max="100" oninput="calcAll()"><span class="u">%</span></div></div>
+            </div>
+          </fieldset>
+
+          <div class="stat-grid">
+            <div class="stat"><div class="lab">Årsproduktion</div><div class="val" id="r_eaar">—</div><div class="note">Eår = Y·P·A</div></div>
+            <div class="stat"><div class="lab" data-help="egetforbrug">Egetforbrug</div><div class="val g" id="r_egetf_kwh">—</div><div class="note">af produktionen</div></div>
+            <div class="stat"><div class="lab">Solgt til net</div><div class="val grid" id="r_eksport">—</div><div class="note">produktion − egetforbrug</div></div>
+            <div class="stat"><div class="lab" data-help="dekning">Dækningsgrad</div><div class="val" id="r_dekning">—</div><div class="note">egetforbrug ÷ forbrug</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="nav-row"><button class="btn ghost" onclick="goStep(5)">← Elsikkerhed</button><button class="btn" onclick="goStep(7)">Næste: Business case →</button></div>
+  </div>
+
+  <!-- ============ STEP 7: BUSINESS CASE ============ -->
+  <div class="stepview" id="s7">
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-head"><h2>Pris &amp; takster</h2></div>
+        <div class="panel-body">
+
+          <fieldset style="border-color:var(--grid)">
+            <legend style="color:var(--grid)">Hent dagsaktuel elpris <span class="ihelp" tabindex="0">?<span class="tip" style="border-color:var(--grid)"><b>Spotpris fra Energinet</b>Henter de seneste spotpriser (Elspotprices) direkte fra Energinets gratis, åbne API — ingen login eller nøgle nødvendig. Spotprisen er ekskl. moms, elafgift og nettariffer, så læg disse til for at få den pris I reelt betaler/sparer pr. kWh.</span></span></legend>
+            <div class="row2">
+              <div class="field"><label>Prisområde</label>
+                <select class="input" id="spot_area">
+                  <option value="DK1">DK1 — Vestdanmark</option>
+                  <option value="DK2">DK2 — Østdanmark</option>
+                </select>
+              </div>
+              <div class="field"><label>Tillæg <span class="hint">moms + afgift + nettarif</span></label><div class="unit"><input class="input" id="spot_tillaeg" type="number" value="1.30" step="0.05"><span class="u">kr/kWh</span></div></div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <button class="btn" id="spot_btn" onclick="hentSpotpris()" type="button">⚡ Hent dagsaktuel pris</button>
+              <span id="spot_status" style="font-size:11.5px;color:var(--ink-dim);font-family:var(--mono)"></span>
+            </div>
+            <div id="spot_result" style="margin-top:10px"></div>
+          </fieldset>
+
+          <div class="row3">
+            <div class="field"><label>Eltakst køb</label><div class="unit"><input class="input" id="e_kob" type="number" value="2.30" step="0.05" oninput="calcAll()"><span class="u">kr</span></div></div>
+            <div class="field"><label>Eltakst salg</label><div class="unit"><input class="input" id="e_salg" type="number" value="0.25" step="0.05" oninput="calcAll()"><span class="u">kr</span></div></div>
+            <div class="field"><label>CO₂-faktor el</label><div class="unit"><input class="input" id="e_co2" type="number" value="0.15" step="0.01" oninput="calcAll()"><span class="u">kg/kWh</span></div></div>
+          </div>
+          <fieldset>
+            <legend>Tilbud</legend>
+            <div class="row2">
+              <div class="field"><label>Panelpris/stk</label><div class="unit"><input class="input" id="t_panel" type="number" value="1400" oninput="calcAll()"><span class="u">kr</span></div></div>
+              <div class="field"><label>Inverterpris</label><div class="unit"><input class="input" id="t_inv" type="number" value="18000" oninput="calcAll()"><span class="u">kr</span></div></div>
+            </div>
+            <div class="row2">
+              <div class="field"><label>Monteringssystem <span class="hint">total, fra trin 4</span></label><div class="unit"><input class="input" id="t_mont_sys" type="number" value="0" oninput="calcAll()"><span class="u">kr</span></div></div>
+              <div class="field"><label>Batteripris <span class="hint">kun hvis valgt i trin 6</span></label><div class="unit"><input class="input" id="t_bat" type="number" value="55000" oninput="calcAll()"><span class="u">kr</span></div></div>
+            </div>
+            <div class="row2">
+              <div class="field"><label>Montagetimer</label><input class="input" id="t_timer" type="number" value="24" oninput="calcAll()"></div>
+              <div class="field"><label>Timepris montage</label><div class="unit"><input class="input" id="t_timepris" type="number" value="1000" oninput="calcAll()"><span class="u">kr</span></div></div>
+            </div>
+          </fieldset>
+          <div style="font-family:var(--mono);font-size:12px">
+            <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line);color:var(--ink-dim)"><span>Paneler</span><span id="b_panel" style="color:var(--ink)">—</span></div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line);color:var(--ink-dim)"><span>Inverter</span><span id="b_inv" style="color:var(--ink)">—</span></div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line);color:var(--ink-dim)"><span>Monteringssystem</span><span id="b_mountsys" style="color:var(--ink)">—</span></div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line);color:var(--ink-dim)"><span>Batteri</span><span id="b_bat" style="color:var(--ink)">—</span></div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line);color:var(--ink-dim)"><span>Montage</span><span id="b_mont" style="color:var(--ink)">—</span></div>
+            <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--line);color:var(--ink-dim)"><span>Tilslutningsgebyr</span><span id="b_tilsl" style="color:var(--ink)">—</span></div>
+            <div style="display:flex;justify-content:space-between;padding:7px 0;border-top:1px solid var(--sun);margin-top:2px;font-weight:700"><span>Samlet anlægspris</span><span id="b_total" style="color:var(--sun)">—</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="result-hero">
+          <p class="big" data-help="payback">Tilbagebetalingstid <span class="src">(akkumuleret, vs. fortsat fuldt køb)</span></p>
+          <div class="kw" id="r_payback">—<small> år</small></div>
+          <div class="hero-sub">
+            <div>Årlig besparelse, år 1<b id="r_yearsave">—</b></div>
+            <div>CO₂-besparelse/år<span data-help="co2"></span><b id="r_co2save">—</b></div>
+            <div>CO₂ over 25 år<b id="r_co2_25">—</b></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2>Akkumuleret over 25 år</h2></div>
+          <div class="panel-body" style="padding:10px 12px">
+            <div class="timetable" style="max-height:320px">
+              <table class="simple">
+                <thead><tr><th>År</th><th>Med solceller (akk.)</th><th>Uden (akk.)</th><th>Besparelse</th></tr></thead>
+                <tbody id="payback-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="flags" id="flags7"></div>
+    <div class="nav-row"><button class="btn ghost" onclick="goStep(6)">← Forbrug</button><span></span></div>
+  </div>
+
+  <footer>
+    <div style="margin-bottom:10px">
+      <span class="pill">DS/HD 60364-7-712</span>
+      <span class="pill">STC</span>
+      <span class="pill">DMI klimatal 2006–2015</span>
+      <span class="pill">DK metode</span>
+    </div>
+    <b>Metode:</b> Eår = Y · P · A [kWh/år], hvor Y = 1000 kWh/kWp (standardydelse), P = installeret effekt i kWp, A = f₀ · f<sub>skygge</sub> · f<sub>sol</sub>. Stringdesign kontrolleres mod inverterens maks. spænding (Uoc × antal paneler/streng) og maks. strøm (Isc × sikkerhedsfaktor 1,25). Vægtberegning og monteringssystem er typiske branche-værdier, ikke statisk verificerede — endelig konstruktion skal altid godkendes af tagfabrikant/konstruktør. RCD- og målerkrav er forenklede tommelfingerregler ud fra DS/HD 60364-7-712 og stærkstrømsbekendtgørelsen — verificér altid mod gældende regler og netoperatørens krav før projektering. Økonomi er simpel akkumuleret model uden diskontering eller fremtidige prisstigninger — til forhåndsvurdering, ikke bindende tilbud.<br>
+    <b>Find tag automatisk:</b> Kræver at afdelingens proxy-server (se kravspecifikation) er sat op og dens adresse indsat i koden under <code>PROXY_URL</code>. Indtil da kan taghældning/orientering indtastes manuelt.
+  </footer>
+</div>
+
+<script>
+/* ================= HELP TOOLTIPS ================= */
+const HELP = {
+  eaar: ['Eår = Y · P · A', 'Den samlede årsproduktion i kWh. Y er standardydelsen (1000 kWh pr. installeret kWp), P er anlæggets størrelse i kWp, og A er anlægsfaktoren.'],
+  tagbredde: ['Tagbredde', 'Vandret mål fra gavl til gavl. Aflæses lettest fra byggetegning, eller måles fysisk på stedet.'],
+  taghaeldning: ['Taghældning', 'Vinkel i grader fra vandret. Optimal i Danmark er omkring 30-45°.'],
+  tagdybde: ['Taghøjde langs skråning', 'Afstanden fra tagryg (kip) til tagfod, målt langs selve tagfladen — ikke den lodrette højde.'],
+  panel_vs_streng: ['Panel, række og streng', 'Panel er den enkelte fysiske plade. Række handler om fysisk placering på taget (geometri). Streng handler om elektrisk seriekobling af paneler frem til inverteren — et separat valg fra placeringen.'],
+  stc: ['STC — Standard Test Conditions', 'Laboratoriestandard: 1000 W/m² indstråling, 25°C celletemperatur, AM 1,5. Mærkepladens Wp, Uoc og Isc er målt under STC.'],
+  uoc: ['Uoc — Tomgangsspænding', 'Spændingen panelet afgiver ubelastet. Bruges til at beregne strengens maks. spænding: Uoc × antal paneler i serie.'],
+  isc: ['Isc — Kortslutningsstrøm', 'Maksimal strøm ved kortslutning. Bruges til at kontrollere inverterens strømgrænse, normalt med sikkerhedsfaktor 1,25.'],
+  fo: ['f₀ — Orienteringsfaktor', 'Reduktionsfaktor for afvigelse fra optimal placering (stik syd, ca. 40° hældning). 1,0 er optimum.'],
+  fskygge: ['fskygge — Skyggefaktor', 'Skøn 0–1 for skyggens gennemsnitlige indflydelse. 1 = ingen skygge, 0 = total mørke.'],
+  fsol: ['fsol — Solskinstimefaktor', 'Lokale solskinstimer divideret med landsgennemsnittet (1750 timer/år, DMI 2006–2015).'],
+  streng_spaending: ['Strengspænding', 'Summen af alle panelers Uoc i samme streng. Må ikke overstige inverterens maks. indgangsspænding.'],
+  streng_strom: ['Strengstrøm', 'Panelets Isc × sikkerhedsfaktor. Skal være under inverterens maks. indgangsstrøm pr. streng.'],
+  egetforbrug: ['Egetforbrug', 'Den del af produktionen der bruges direkte i bygningen i samme øjeblik. Uden batteri typisk 30-40%.'],
+  dekning: ['Dækningsgrad', 'Andel af det ÅRLIGE forbrug der dækkes af egetforbrug. Forskellig fra egetforbrugsandelen (andel af produktionen).'],
+  payback: ['Tilbagebetalingstid', 'År til den akkumulerede besparelse opvejer investeringen. Simpel model uden diskontering.'],
+  co2: ['CO₂-besparelse', 'CO₂-faktor for el × den mængde købt el der spares ved selv at producere.'],
+  monteringssystem: ['Monteringssystem', 'Den fysiske måde panelerne fastgøres til taget. Vælges efter tagtype, hældning og om man kan/vil bore i taget.'],
+  produktionsmaaler: ['Produktionsmåler', 'En separat måler der registrerer anlæggets produktion. Krav afhænger typisk af anlæggets størrelse og tilslutningsform — verificér altid med netoperatøren.'],
+  rcd: ['Fejlstrømsafbryder (RCD)', 'Som udgangspunkt kræves RCD type B for klasse 1-invertere i Danmark, medmindre fabrikanten dokumenterer at inverteren ikke leverer DC-fejlstrøm over 6 mA — så kan type A bruges.'],
+  tilgangsafbryder: ['Tilslutningsafbryder', 'DS/HD 60364-7-712 kræver midler til at adskille inverteren fra både DC- og AC-side, så vedligehold kan udføres sikkert.'],
+};
+function ih(key){
+  const h = HELP[key];
+  if(!h) return '';
+  return `<span class="ihelp" tabindex="0">?<span class="tip"><b>${h[0]}</b>${h[1]}</span></span>`;
+}
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.querySelectorAll('[data-help]').forEach(el=>{
+    el.insertAdjacentHTML('beforeend', ih(el.dataset.help));
+  });
+});
+
+const $ = id => document.getElementById(id);
+const fmt = (n,d=0) => isFinite(n)? n.toLocaleString('da-DK',{minimumFractionDigits:d,maximumFractionDigits:d}) : '—';
+
+/* ================= STEP NAV ================= */
+function goStep(n){
+  document.querySelectorAll('.step').forEach(s=>s.classList.toggle('on', s.dataset.s===String(n)));
+  document.querySelectorAll('.stepview').forEach(v=>v.classList.toggle('on', v.id==='s'+n));
+}
+document.querySelectorAll('.step').forEach(s=>s.addEventListener('click',()=>goStep(s.dataset.s)));
+
+/* ================= DMI SOLSKINSTIMER ================= */
+const DMI = {
+"Albertslund":1747,"Allerød":1744,"Assens":1753,"Ballerup":1746,"Billund":1614,"Bornholm":1909,"Brøndby":1743,"Brønderslev":1787,"Dragør":1740,"Egedal":1748,"Esbjerg":1681,"Fanø":1749,"Favrskov":1659,"Faxe":1750,"Fredensborg":1745,"Fredericia":1714,"Frederiksberg":1739,"Frederikshavn":1883,"Frederikssund":1767,"Furesø":1744,"Faaborg-Midtfyn":1756,"Gentofte":1741,"Gladsaxe":1744,"Glostrup":1745,"Greve":1749,"Gribskov":1767,"Guldborgsund":1840,"Haderslev":1658,"Halsnæs":1791,"Hedensted":1650,"Helsingør":1754,"Herlev":1745,"Herning":1609,"Hillerød":1746,"Hjørring":1834,"Holbæk":1783,"Holstebro":1666,"Horsens":1627,"Hvidovre":1741,"Høje-Taastrup":1749,"Hørsholm":1744,"Ikast-Brande":1581,"Ishøj":1747,"Jammerbugt":1797,"Kalundborg":1810,"Kerteminde":1800,"Kolding":1661,"København":1739,"Køge":1743,"Langeland":1799,"Lejre":1765,"Lemvig":1721,"Lolland":1795,"Lyngby-Taarbæk":1743,"Læsø":1951,"Mariagerfjord":1722,"Middelfart":1758,"Morsø":1804,"Norddjurs":1770,"Nordfyns":1775,"Nyborg":1784,"Næstved":1772,"Odder":1757,"Odense":1752,"Odsherred":1804,"Randers":1686,"Rebild":1751,"Ringkøbing-Skjern":1651,"Ringsted":1758,"Roskilde":1752,"Rudersdal":1744,"Rødovre":1743,"Samsø":1917,"Silkeborg":1611,"Skanderborg":1634,"Skive":1722,"Slagelse":1787,"Solrød":1747,"Sorø":1771,"Stevns":1747,"Struer":1702,"Svendborg":1780,"Syddjurs":1746,"Sønderborg":1729,"Thisted":1815,"Tønder":1642,"Tårnby":1739,"Vallensbæk":1745,"Varde":1656,"Vejen":1637,"Vejle":1623,"Vesthimmerlands":1767,"Viborg":1639,"Vordingborg":1813,"Ærø":1787,"Aabenraa":1591,"Aalborg":1783,"Aarhus":1699
+};
+(function(){
+  const sel = $('f_kommune');
+  sel.innerHTML = '<option value="">— Vælg kommune —</option>' +
+    Object.keys(DMI).sort().map(k=>`<option value="${k}">${k} (${DMI[k]} timer)</option>`).join('');
+})();
+function applyKommune(){
+  const k = $('f_kommune').value;
+  if(k) $('f_timer').value = DMI[k];
+  calcAll();
+}
+
+/* ================= STANDARDPANELER ================= */
+const PANELS = [
+  {id:'p1', navn:'Kompakt 415W', pmax:415, uoc:38.5, isc:13.9, h:182, b:113, vaegt:20.5},
+  {id:'p2', navn:'Standard 440W', pmax:440, uoc:41.2, isc:13.6, h:182, b:113, vaegt:22},
+  {id:'p3', navn:'Standard 460W', pmax:460, uoc:43.0, isc:13.8, h:190, b:113, vaegt:23.5},
+  {id:'p4', navn:'High-power 500W', pmax:500, uoc:46.5, isc:13.9, h:203, b:113, vaegt:26},
+  {id:'p5', navn:'Stor 545W', pmax:545, uoc:49.8, isc:13.9, h:228, b:113, vaegt:28},
+];
+function renderPanelCards(){
+  const wrap = $('panel-cards');
+  wrap.innerHTML = PANELS.map(p=>`
+    <button type="button" class="pick-card" data-panel="${p.id}" onclick="selectPanel('${p.id}')">
+      <span class="pc-icon">▭</span>
+      <div class="pc-title">${p.navn}</div>
+      <div class="pc-sub">${p.h}×${p.b} cm<br>${p.vaegt} kg</div>
+    </button>`).join('');
+}
+function selectPanel(id){
+  const p = PANELS.find(x=>x.id===id);
+  if(!p) return;
+  $('m_pmax').value = p.pmax;
+  $('m_uoc').value = p.uoc;
+  $('m_isc').value = p.isc;
+  $('p_h').value = p.h;
+  $('p_vaegt').value = p.vaegt;
+  document.querySelectorAll('#panel-cards .pick-card').forEach(c=>c.classList.toggle('on', c.dataset.panel===id));
+  calcAll();
+}
+
+/* ================= MONTERINGSSYSTEM ================= */
+const MOUNTS = [
+  {id:'m1', navn:'Skinnesystem (skråtag)', icon:'⟍', sub:'Fastskruet, +4 kg/panel', beslagKg:4, ballast:false},
+  {id:'m2', navn:'Ballast, syd-vendt', icon:'▦', sub:'Fladt tag, ingen boring', beslagKg:5, ballast:true, ballastKgm2:17},
+  {id:'m3', navn:'Ballast, øst/vest', icon:'▥', sub:'Fladt tag, bedre pladsudnyttelse', beslagKg:5, ballast:true, ballastKgm2:15},
+  {id:'m4', navn:'Klæbesystem (parallel)', icon:'▬', sub:'Fladt tag, ingen hældning, ingen ballast', beslagKg:2, ballast:false},
+  {id:'m5', navn:'Indfæstning (gennemboring)', icon:'✕', sub:'Fastspænding, kræver tætning', beslagKg:4.5, ballast:false},
+];
+function renderMountCards(){
+  const wrap = $('mount-cards');
+  wrap.innerHTML = MOUNTS.map(m=>`
+    <button type="button" class="pick-card" data-mount="${m.id}" onclick="selectMount('${m.id}')">
+      <span class="pc-icon">${m.icon}</span>
+      <div class="pc-title">${m.navn}</div>
+      <div class="pc-sub">${m.sub}</div>
+    </button>`).join('');
+}
+let selectedMount = 'm1';
+function selectMount(id){
+  selectedMount = id;
+  const m = MOUNTS.find(x=>x.id===id);
+  $('w_beslag').value = m.beslagKg;
+  $('w_ballast_field').style.display = m.ballast ? 'block' : 'none';
+  if(m.ballast) $('w_ballast_kgm2').value = m.ballastKgm2;
+  document.querySelectorAll('#mount-cards .pick-card').forEach(c=>c.classList.toggle('on', c.dataset.mount===id));
+  calcAll();
+}
+
+/* ================= TILSLUTNINGSAFBRYDER ================= */
+const DISC = [
+  {id:'d1', navn:'Ved inverter', sub:'DC + AC adskillelse integreret i inverteren'},
+  {id:'d2', navn:'Separat DC-afbryder + AC i gruppetavle', sub:'To separate adskillelsespunkter'},
+  {id:'d3', navn:'Ekstern hovedafbryder', sub:'Samlet afbryder før gruppetavle'},
+];
+function renderDiscCards(){
+  const wrap = $('disc-cards');
+  wrap.innerHTML = DISC.map(d=>`
+    <button type="button" class="pick-card" data-disc="${d.id}" onclick="selectDisc('${d.id}')">
+      <div class="pc-title">${d.navn}</div>
+      <div class="pc-sub">${d.sub}</div>
+    </button>`).join('');
+}
+let selectedDisc = 'd1';
+function selectDisc(id){
+  selectedDisc = id;
+  document.querySelectorAll('#disc-cards .pick-card').forEach(c=>c.classList.toggle('on', c.dataset.disc===id));
+}
+
+/* ================= HUSDIAGRAM (SVG) ================= */
+function drawHouse(bredde_cm, hoejde_cm, haeld, perRow, rows){
+  const svg = $('house-svg');
+  const vw=760, vh=340;
+  const houseW = 420, houseBaseY = 270, gavlH = 90, roofH = 110;
+  const ox = (vw-houseW)/2;
+
+  // Tagflade i perspektiv: vis som et trapez der antyder hældning
+  const roofTopY = houseBaseY - gavlH - roofH;
+  const roofSkew = Math.min(haeld*1.2, 60);
+
+  let panelsSvg = '';
+  if(perRow>0 && rows>0){
+    const padX = 30, padY = 14;
+    const innerW = houseW - 2*padX;
+    const innerH = roofH - 2*padY;
+    const cellW = innerW / Math.min(perRow, 14);
+    const cellH = innerH / Math.min(rows, 6);
+    const showCols = Math.min(perRow, 14);
+    const showRows = Math.min(rows, 6);
+    for(let r=0;r<showRows;r++){
+      for(let c=0;c<showCols;c++){
+        const x = ox + padX + c*cellW + 1;
+        const y = roofTopY + padY + r*cellH + 1;
+        panelsSvg += `<rect class="panel-row" x="${x}" y="${y}" width="${cellW-2}" height="${cellH-2}" rx="1"/>`;
+      }
+    }
+  }
+
+  svg.innerHTML = `
+    <!-- Mur -->
+    <rect class="struct" x="${ox}" y="${houseBaseY-gavlH}" width="${houseW}" height="${gavlH}" rx="2"/>
+    <!-- Tagflade -->
+    <polygon class="roof" points="${ox-20},${houseBaseY-gavlH} ${ox+houseW+20},${houseBaseY-gavlH} ${ox+houseW-roofSkew},${roofTopY} ${ox+roofSkew},${roofTopY}"/>
+    ${panelsSvg}
+    <!-- Dimensionslinjer -->
+    <line class="dim-line" x1="${ox}" y1="${houseBaseY+30}" x2="${ox+houseW}" y2="${houseBaseY+30}"/>
+    <line class="dim-line" x1="${ox}" y1="${houseBaseY+22}" x2="${ox}" y2="${houseBaseY+38}"/>
+    <line class="dim-line" x1="${ox+houseW}" y1="${houseBaseY+22}" x2="${ox+houseW}" y2="${houseBaseY+38}"/>
+    <text class="dim-text" x="${ox+houseW/2}" y="${houseBaseY+52}" text-anchor="middle">Tagbredde: ${fmt(bredde_cm/100,1)} m</text>
+
+    <line class="dim-line" x1="${ox+houseW+45}" y1="${roofTopY}" x2="${ox+houseW+45}" y2="${houseBaseY-gavlH}"/>
+    <line class="dim-line" x1="${ox+houseW+37}" y1="${roofTopY}" x2="${ox+houseW+53}" y2="${roofTopY}"/>
+    <line class="dim-line" x1="${ox+houseW+37}" y1="${houseBaseY-gavlH}" x2="${ox+houseW+53}" y2="${houseBaseY-gavlH}"/>
+    <text class="dim-text" x="${ox+houseW+60}" y="${(roofTopY+houseBaseY-gavlH)/2+4}" transform="rotate(0)">${fmt(hoejde_cm/100,1)} m</text>
+
+    <text class="label" x="${ox+houseW/2}" y="${roofTopY-14}" text-anchor="middle">Hældning: ${fmt(haeld,1)}°</text>
+    <text class="label" x="${ox+houseW/2}" y="${houseBaseY-gavlH/2+4}" text-anchor="middle">Gavl/facade</text>
+  `;
+}
+
+/* ================= INVERTERFORSLAG ================= */
+function suggestInverters(kWp){
+  // Typestørrelser ud fra AC/DC-ratio ~0,9-1,0
+  const sizes = [3,5,6,8,10,15,20,25,30,40,50];
+  const closest = sizes.filter(s => s >= kWp*0.85 && s <= kWp*1.15);
+  let suggestions = closest.length ? closest : [sizes.reduce((a,b)=>Math.abs(b-kWp)<Math.abs(a-kWp)?b:a)];
+  suggestions = suggestions.slice(0,3);
+  const wrap = $('inverter-suggestions');
+  if(kWp<=0){ wrap.innerHTML = '<p style="font-size:12px;color:#5f779c">Angiv anlægsstørrelse i trin 1 for at se forslag.</p>'; return; }
+  wrap.innerHTML = suggestions.map(s=>{
+    const faset = s<=6 ? '1-faset' : '3-faset';
+    const imax = Math.round(s*1000/230/ (s<=6?1:3) * 1.1);
+    return `<button type="button" class="pick-card" onclick="applyInverterSuggestion(${s})">
+      <span class="pc-icon">⚡</span>
+      <div class="pc-title">${s} kW</div>
+      <div class="pc-sub">${faset}<br>AC/DC-ratio ${fmt(s/kWp,2)}</div>
+    </button>`;
+  }).join('');
+}
+function applyInverterSuggestion(kw){
+  $('i_navn').value = kw+' kW inverter (typeforslag)';
+  $('i_umax').value = kw<=6 ? 600 : 1000;
+  $('i_imax').value = Math.round(kw*1000/(kw<=6?230:400)*1.15);
+  calcAll();
+}
+
+/* ================= FORBRUGSDATA PASTE ================= */
+const DEFAULT_HOURS = [0.5,0.75,0.5,0.55,0.6,2.6,2.75,2.65,2.1,1.5,1,1.5,1.25,1.25,1.75,1.4,1.1,2.75,2.75,2.5,2.4,3,0.6,0.25];
+function buildTimetable(hours){
+  const tb = $('tt-body');
+  tb.innerHTML = hours.map((v,i)=>{
+    const h1=String(i).padStart(2,'0'), h2=String((i+1)%24).padStart(2,'0');
+    return `<tr><td>kl. ${h1}-${h2}</td><td><input type="number" step="0.01" value="${v}" oninput="calcAll()"></td></tr>`;
+  }).join('');
+}
+function applyPastedForbrug(){
+  const raw = $('forbrug_paste').value.trim();
+  if(!raw) return;
+  const lines = raw.split('\n').map(l=>l.trim()).filter(l=>l.length);
+  const vals = lines.map(l=>{
+    const parts = l.split(/[;,\t]/);
+    const last = parts[parts.length-1].replace(',','.');
+    return parseFloat(last)||0;
+  });
+  if(vals.length===24){
+    buildTimetable(vals);
+    calcAll();
+  } else {
+    alert('Forventede 24 linjer (én pr. time), fandt '+vals.length+'. Tjek formatet og prøv igen.');
+  }
+}
+function resetForbrug(){
+  buildTimetable(DEFAULT_HOURS);
+  $('forbrug_paste').value='';
+  calcAll();
+}
+
+/* ================= FIND TAG AUTOMATISK ================= */
+/* Sæt proxyens URL her, når den er sat op (se "Kravspecifikation Google Solar API-proxy"). */
+const PROXY_URL = '';
+
+async function findTagAutomatisk(){
+  const addr = $('addr_input').value.trim();
+  const status = $('addr_status');
+  const result = $('addr_result');
+  const btn = $('findtag_btn');
+
+  if(!addr){ status.textContent='Indtast en adresse først.'; status.style.color='var(--bad)'; result.innerHTML=''; return; }
+
+  if(!PROXY_URL){
+    result.innerHTML = `<div class="flag warn"><span class="ic">!</span><span>Automatisk tag-opslag er ikke aktiveret endnu — proxy-serveren er ikke sat op. Se "Kravspecifikation Google Solar API-proxy". Indtil da kan taghældning og orientering indtastes manuelt nedenfor.</span></div>`;
+    status.textContent='';
+    return;
+  }
+
+  status.textContent='Slår op...'; status.style.color='var(--ink-dim)';
+  result.innerHTML='';
+  btn.disabled = true;
+
+  try{
+    const res = await fetch(PROXY_URL + '/tag?adresse=' + encodeURIComponent(addr));
+    const data = await res.json();
+
+    if(data.status !== 'ok'){
+      result.innerHTML = `<div class="flag warn"><span class="ic">!</span><span>${data.besked || 'Kunne ikke finde tagdata for denne adresse.'}</span></div>`;
+      status.textContent='';
+      btn.disabled = false;
+      return;
+    }
+
+    const seg = data.tagsegment_primaer;
+    $('t_haeld').value = seg.haeldning_grader.toFixed(1);
+    $('f_haeld2').value = seg.haeldning_grader.toFixed(1);
+    $('f_drej').value = seg.afvigelse_fra_syd_grader.toFixed(1);
+
+    result.innerHTML = `<div class="flag ok"><span class="ic">✓</span><span>Fundet: hældning ${seg.haeldning_grader.toFixed(1)}°, afvigelse fra syd ${seg.afvigelse_fra_syd_grader.toFixed(1)}° (areal ${seg.areal_m2.toFixed(0)} m²). Værdier indsat i trin 1 og 2.</span></div>`;
+    status.textContent='';
+    calcAll();
+  } catch(e){
+    result.innerHTML = `<div class="flag warn"><span class="ic">!</span><span>Kunne ikke kontakte proxy-serveren. Tjek at den kører, og at PROXY_URL i koden er korrekt sat.</span></div>`;
+    status.textContent='';
+  }
+  btn.disabled = false;
+}
+
+/* ================= SPOTPRIS FRA ENERGINET ================= */
+async function hentSpotpris(){
+  const area = $('spot_area').value;
+  const tillaeg = +$('spot_tillaeg').value || 0;
+  const status = $('spot_status');
+  const result = $('spot_result');
+  const btn = $('spot_btn');
+
+  status.textContent='Henter...'; status.style.color='var(--ink-dim)';
+  result.innerHTML='';
+  btn.disabled = true;
+
+  try{
+    const filterParam = encodeURIComponent(JSON.stringify({PriceArea:[area]}));
+    const sortParam = encodeURIComponent('HourUTC desc');
+    const url = `https://api.energidataservice.dk/dataset/Elspotprices?start=now-P1D&end=now&filter=${filterParam}&sort=${sortParam}&limit=24`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+
+    if(!data.records || data.records.length===0){
+      result.innerHTML = `<div class="flag warn"><span class="ic">!</span><span>Ingen prisdata fundet for ${area} i den seneste periode.</span></div>`;
+      status.textContent='';
+      btn.disabled=false;
+      return;
+    }
+
+    const records = data.records;
+    const senesteRecord = records[0];
+    const senestePrisOreKwh = senesteRecord.SpotPriceDKK / 10; // DKK/MWh -> øre/kWh
+    const senestePrisKrKwh = senestePrisOreKwh / 100;
+
+    const gnsOreKwh = records.reduce((sum,r)=>sum+r.SpotPriceDKK,0) / records.length / 10;
+    const gnsKrKwh = gnsOreKwh / 100;
+
+    const minKr = Math.min(...records.map(r=>r.SpotPriceDKK))/10/100;
+    const maxKr = Math.max(...records.map(r=>r.SpotPriceDKK))/10/100;
+
+    const samletKob = gnsKrKwh + tillaeg;
+    $('e_kob').value = samletKob.toFixed(2);
+
+    result.innerHTML = `<div class="flag ok"><span class="ic">✓</span><span>
+      ${area} — seneste time (${senesteRecord.HourDK.replace('T',' kl. ').slice(0,16)}): <b>${fmt(senestePrisKrKwh,2)} kr/kWh</b> (spotpris).<br>
+      Snit seneste ${records.length} timer: ${fmt(gnsKrKwh,2)} kr/kWh (spænd ${fmt(minKr,2)}–${fmt(maxKr,2)}).<br>
+      Indsat som eltakst køb: ${fmt(gnsKrKwh,2)} + ${fmt(tillaeg,2)} tillæg = <b>${fmt(samletKob,2)} kr/kWh</b>.
+    </span></div>`;
+    status.textContent='';
+    calcAll();
+  } catch(e){
+    const isCorsLike = e.message === 'Failed to fetch' || e.name === 'TypeError';
+    const besked = isCorsLike
+      ? 'Browseren kunne ikke hente data fra Energinets server. Det er typisk en CORS-begrænsning (serveren tillader ikke kald direkte fra denne side), men kan også skyldes en adblocker eller ingen internetforbindelse. Tjek browserens udviklerkonsol (F12 → Console) for den nøjagtige fejl, eller indtast eltaksten manuelt nedenfor.'
+      : `Kunne ikke hente spotpris (${e.message}). Tjek internetforbindelse, eller indtast eltaksten manuelt nedenfor.`;
+    result.innerHTML = `<div class="flag warn"><span class="ic">!</span><span>${besked}</span></div>`;
+    status.textContent='';
+  }
+  btn.disabled = false;
+}
+
+function applyShadeType(){
+  const v = $('f_skygge_type').value;
+  if(v) $('f_skygge').value = v;
+  calcAll();
+}
+function syncHaeld(){
+  $('t_haeld').value = $('f_haeld2').value;
+  calcAll();
+}
+
+/* ================= MAIN CALC ================= */
+function calcAll(){
+  /* --- Step 1: tagpakning --- */
+  const tBredde=+$('t_bredde').value||0, tHaeld=+$('t_haeld').value||0, tHoejdeFlad=+$('t_hoejde_flad').value||0;
+  const pH=+$('p_h').value||1, pKant=+$('p_kant').value||0, pBeslag=+$('p_beslag').value||0;
+  const pB = 113; // standardbredde for valgte panel-serie
+
+  const tHoejdeMedHaeld = tHaeld>0 ? Math.floor(tHoejdeFlad/Math.cos(tHaeld*Math.PI/180)) : tHoejdeFlad;
+  const perRow = Math.floor((tBredde - 2*pKant) / (pB + pBeslag));
+  const rows = Math.floor((tHoejdeMedHaeld - 2*pKant) / pH);
+  const cap = Math.max(perRow,0)*Math.max(rows,0);
+
+  $('r_perrow').textContent = perRow>0?perRow:0;
+  $('r_rows').textContent = rows>0?rows:0;
+  $('r_cap').textContent = cap+' stk';
+
+  drawHouse(tBredde, tHoejdeMedHaeld, tHaeld, Math.max(perRow,0), Math.max(rows,0));
+
+  const nPaneler = Math.max(+$('n_paneler').value||0,0);
+  const pmax = +$('m_pmax').value||0;
+  const kWp = nPaneler*pmax/1000;
+  $('r_kwp').innerHTML = fmt(kWp,2)+' kWp';
+
+  $('n_paneler').style.borderColor = (nPaneler>cap && cap>0) ? 'var(--bad)' : 'var(--line)';
+
+  suggestInverters(kWp);
+
+  /* --- Step 2: anlægsfaktor --- */
+  const drej=+$('f_drej').value||0;
+  const haeldVal = +$('t_haeld').value||0;
+  let foAuto = Math.max(0.5, Math.min(1, 1 - 0.0025*drej - 0.0008*Math.pow(Math.abs(haeldVal-40),1.15)));
+  const foManual = $('f_o_manual').value;
+  const fo = foManual!==''? +foManual : foAuto;
+  $('r_fo').textContent = fmt(fo,2);
+
+  const fs = +$('f_skygge').value||1;
+  $('r_fs').textContent = fmt(fs,2);
+
+  const timer = +$('f_timer').value||1750;
+  const ft = timer/1750;
+  $('r_ft').textContent = fmt(ft,3);
+
+  const A = fo*fs*ft;
+  $('r_A').textContent = fmt(A,3);
+  $('r_A_fo').textContent = fmt(fo,2);
+  $('r_A_fs').textContent = fmt(fs,2);
+  $('r_A_ft').textContent = fmt(ft,3);
+
+  /* --- Step 3: streng & inverter --- */
+  const strenge = Math.max(+$('i_strenge').value||1,1);
+  const ppStreng = Math.floor(nPaneler/strenge);
+  $('r_pps').textContent = ppStreng+' stk';
+
+  const uoc=+$('m_uoc').value||0, isc=+$('m_isc').value||0;
+  const umax=+$('i_umax').value||0, imax=+$('i_imax').value||0, sf=+$('i_sf').value||1.25;
+  const uStreng = uoc*ppStreng;
+  const iStreng = isc*sf;
+  $('r_ustreng').textContent = fmt(uStreng,1)+' V';
+  $('r_istreng').textContent = fmt(iStreng,1)+' A';
+  $('r_ustreng_note').textContent = `maks. ${fmt(umax,0)} V — ${uStreng<=umax?'OK':'OVERSKREDET'}`;
+  $('r_istreng_note').textContent = `maks. ${fmt(imax,0)} A — ${iStreng<=imax?'OK':'OVERSKREDET'}`;
+  $('r_ustreng').className = 'val '+(uStreng<=umax?'g':'r');
+  $('r_istreng').className = 'val '+(iStreng<=imax?'g':'r');
+
+  const fl3=[];
+  if(uStreng>umax) fl3.push(['warn','!',`Strengspænding (${fmt(uStreng,0)} V) overskrider inverterens maks. (${fmt(umax,0)} V). Reducér antal paneler/streng eller tilføj flere strenge.`]);
+  if(iStreng>imax) fl3.push(['warn','!',`Strengstrøm inkl. sikkerhedsfaktor (${fmt(iStreng,1)} A) overskrider inverterens maks. (${fmt(imax,0)} A). Vælg større inverter eller flere strenge.`]);
+  if(nPaneler%strenge!==0) fl3.push(['info','i',`${nPaneler} paneler fordeler sig ikke jævnt på ${strenge} strenge (${ppStreng}/streng, ${nPaneler-ppStreng*strenge} til overs).`]);
+  if(fl3.length===0) fl3.push(['ok','✓','Stringdesign inden for inverterens spændings- og strømgrænser.']);
+  $('flags3').innerHTML = fl3.map(([c,ic,t])=>`<div class="flag ${c}"><span class="ic">${ic}</span><span>${t}</span></div>`).join('');
+
+  /* --- Step 4: montering & vægt --- */
+  const wPanel = +$('w_panel').value||0;
+  const wBeslag = +$('w_beslag').value||0;
+  const mountObj = MOUNTS.find(m=>m.id===selectedMount) || MOUNTS[0];
+  const arealTag_m2 = (perRow>0&&rows>0) ? (perRow*pB/100)*(rows*pH/100) : 0;
+
+  const vaegtPanelBeslag = nPaneler*(wPanel+wBeslag);
+  let vaegtBallast = 0, vaegtTotal, vaegtPrM2;
+  if(mountObj.ballast){
+    // For ballastsystemer angiver branchen typisk en SAMLET kg/m² inkl. paneler, beslag og ballaststen
+    // (kilde: ca. 15-20 kg/m² komplet for øst/vest- og sydanlæg). Vi bruger derfor dette tal direkte
+    // som den samlede vægt, og udleder "ballastdelen" som forskellen til panel+beslag, til reference.
+    const ballastSamletKgm2 = +$('w_ballast_kgm2').value||0;
+    vaegtTotal = arealTag_m2 * ballastSamletKgm2;
+    vaegtBallast = Math.max(vaegtTotal - vaegtPanelBeslag, 0);
+    vaegtPrM2 = ballastSamletKgm2;
+  } else {
+    vaegtTotal = vaegtPanelBeslag;
+    vaegtPrM2 = arealTag_m2>0 ? vaegtTotal/arealTag_m2 : 0;
+  }
+
+  $('r_vaegt_total').innerHTML = fmt(vaegtTotal,0)+' <small>kg</small>';
+  $('r_vaegt_m2').textContent = fmt(vaegtPrM2,1)+' kg/m²';
+  $('r_vaegt_pb').textContent = fmt(vaegtPanelBeslag,0)+' kg';
+  $('r_vaegt_ballast').textContent = mountObj.ballast ? fmt(vaegtBallast,0)+' kg (ballaststen, udledt)' : '— (ej relevant)';
+
+  const fl4=[];
+  if(vaegtPrM2>40) fl4.push(['warn','!',`Beregnet vægtbelastning (${fmt(vaegtPrM2,1)} kg/m²) er høj — kontrollér tagkonstruktionens bæreevne med en konstruktør.`]);
+  else fl4.push(['ok','✓',`Vægtbelastning ${fmt(vaegtPrM2,1)} kg/m² — typisk inden for normal tagbæreevne, men verificér altid konkret med tagets konstruktion.`]);
+  if(mountObj.id==='m5') fl4.push(['info','i','Gennemboring kræver omhyggelig tætning — risiko for utætheder hvis udført forkert.']);
+  $('flags4').innerHTML = fl4.map(([c,ic,t])=>`<div class="flag ${c}"><span class="ic">${ic}</span><span>${t}</span></div>`).join('');
+
+  /* --- Step 5: elsikkerhed --- */
+  const meterRes = $('meter-result');
+  if(kWp>50){
+    meterRes.innerHTML = `<div class="flag warn"><span class="ic">!</span><span>Anlæg over 50 kW (${fmt(kWp,1)} kWp) — produktionsmåler er typisk et krav. Kontakt netoperatøren for konkret afklaring.</span></div>`;
+  } else if(kWp>11){
+    meterRes.innerHTML = `<div class="flag info"><span class="ic">i</span><span>Anlæg over 11 kWp (${fmt(kWp,1)} kWp) — afklar med netoperatøren om produktionsmåler er nødvendig for dette tilslutningspunkt.</span></div>`;
+  } else {
+    meterRes.innerHTML = `<div class="flag ok"><span class="ic">✓</span><span>Anlæg under 11 kWp (${fmt(kWp,1)} kWp) — produktionsmåler typisk ikke krævet, men elmåleren skal kunne registrere both-ways (import/eksport).</span></div>`;
+  }
+
+  const rcdDoc = $('e_rcd_doc').value;
+  const rcdRes = $('rcd-result');
+  if(rcdDoc==='doc'){
+    rcdRes.innerHTML = `<div class="flag ok"><span class="ic">✓</span><span>Fabrikanten dokumenterer DC-fejlstrøm ≤ 6 mA — RCD type A kan anvendes.</span></div>`;
+  } else {
+    rcdRes.innerHTML = `<div class="flag warn"><span class="ic">!</span><span>Ingen dokumentation for DC-fejlstrøm — RCD type B kræves som udgangspunkt (stærkstrømsbekendtgørelsen afsnit 6, 712.413.1.1.1.2).</span></div>`;
+  }
+
+  const anlaegstype = $('e_anlaegstype').value;
+  const kapGraense = +$('e_kapgraense').value||0;
+  const overGraense = Math.max(kWp-kapGraense,0);
+  const gebyrPrKw = anlaegstype==='villa' ? 825 : 600;
+  const tilslGebyr = overGraense*gebyrPrKw;
+  $('r_tilslgebyr').textContent = fmt(tilslGebyr,0)+' kr';
+
+  const fl5b=[];
+  if(overGraense>0) fl5b.push(['info','i',`${fmt(overGraense,1)} kW over kapacitetsgrænsen × ${gebyrPrKw} kr/kW = ${fmt(tilslGebyr,0)} kr i estimeret tilslutningsgebyr. Bekræft aktuel takst og grænse med netoperatøren.`]);
+  else fl5b.push(['ok','✓','Anlægget er inden for den angivne kapacitetsgrænse — intet tilslutningsgebyr forventet.']);
+  $('flags5b').innerHTML = fl5b.map(([c,ic,t])=>`<div class="flag ${c}"><span class="ic">${ic}</span><span>${t}</span></div>`).join('');
+
+  /* --- Step 6: forbrug --- */
+  let dognSum=0;
+  $('tt-body').querySelectorAll('input').forEach(inp=>dognSum+=(+inp.value||0));
+  $('r_dogn').textContent = fmt(dognSum,2)+' kWh';
+
+  const Y=1000;
+  const Eaar2 = Y*kWp*A;
+  $('r_eaar').textContent = fmt(Eaar2,0)+' kWh/år';
+
+  const cAarlig = +$('c_aarlig').value||0;
+  const batEnabled = $('bat_enabled').checked;
+  const egetfPct = (batEnabled ? (+$('c_egetf_bat').value||0) : (+$('c_egetf').value||0))/100;
+  const egetfKwh = Eaar2*egetfPct;
+  const eksport = Math.max(Eaar2-egetfKwh,0);
+  const dekning = cAarlig>0? egetfKwh/cAarlig : 0;
+
+  $('r_egetf_kwh').textContent = fmt(egetfKwh,0)+' kWh';
+  $('r_eksport').textContent = fmt(eksport,0)+' kWh';
+  $('r_dekning').textContent = fmt(dekning*100,0)+' %';
+
+  /* --- Step 7: business case --- */
+  const kob=+$('e_kob').value||0, salg=+$('e_salg').value||0, co2f=+$('e_co2').value||0;
+  const tPanel=+$('t_panel').value||0, tInv=+$('t_inv').value||0, tTimer=+$('t_timer').value||0, tTimepris=+$('t_timepris').value||0;
+  const tBat=+$('t_bat').value||0;
+
+  // Estimer monteringspris ud fra vægtberegningens komponenter (beslag + evt. ballast-materiale)
+  const mountEstimat = Math.round(nPaneler*350 + (mountObj.ballast? arealTag_m2*120 : 0));
+  $('t_mont_sys').value = mountEstimat;
+
+  const bPanel = nPaneler*tPanel;
+  const bInv = tInv;
+  const bMountSys = mountEstimat;
+  const bBat = batEnabled ? tBat : 0;
+  const bMont = tTimer*tTimepris;
+  const bTilsl = tilslGebyr;
+  const bTotal = bPanel+bInv+bMountSys+bBat+bMont+bTilsl;
+
+  $('b_panel').textContent = fmt(bPanel,0)+' kr';
+  $('b_inv').textContent = fmt(bInv,0)+' kr';
+  $('b_mountsys').textContent = fmt(bMountSys,0)+' kr';
+  $('b_bat').textContent = batEnabled ? fmt(bBat,0)+' kr' : '— (ikke valgt)';
+  $('b_mont').textContent = fmt(bMont,0)+' kr';
+  $('b_tilsl').textContent = fmt(bTilsl,0)+' kr';
+  $('b_total').textContent = fmt(bTotal,0)+' kr';
+
+  const salgKr = (Eaar2-egetfKwh)*salg;
+  const koebKrMed = Math.max(cAarlig-egetfKwh,0)*kob;
+  const koebKrUden = cAarlig*kob;
+  const yearSaveNet = koebKrUden - (koebKrMed - salgKr);
+  $('r_yearsave').textContent = fmt(yearSaveNet,0)+' kr';
+
+  const co2Uden = co2f*cAarlig;
+  const co2Med = co2f*Math.max(cAarlig-Eaar2,0);
+  const co2SaveYear = co2Uden-co2Med;
+  $('r_co2save').textContent = fmt(co2SaveYear,0)+' kg';
+  $('r_co2_25').textContent = fmt(co2SaveYear*25,0)+' kg';
+
+  let accMed=bTotal, accUden=0, paybackYear=null;
+  let rows25='';
+  for(let y=0;y<=25;y++){
+    if(y>0){
+      accMed += koebKrMed - salgKr;
+      accUden += koebKrUden;
+    }
+    const save = accUden-accMed;
+    if(paybackYear===null && save>=0 && y>0) paybackYear=y;
+    rows25+=`<tr><td>${y}</td><td>${fmt(accMed,0)} kr</td><td>${fmt(accUden,0)} kr</td><td style="color:${save>=0?'var(--good)':'var(--bad)'}">${fmt(save,0)} kr</td></tr>`;
+  }
+  $('payback-body').innerHTML = rows25;
+  $('r_payback').innerHTML = (paybackYear!==null? paybackYear : '>25')+'<small> år</small>';
+
+  const fl7=[];
+  if(batEnabled) fl7.push(['info','i',`Batteri (${fmt(+$('bat_kwh').value||0,1)} kWh) inkluderet — egetforbrugsandel sat til ${fmt(+$('c_egetf_bat').value||0,0)}% af produktionen i stedet for standardværdien uden batteri.`]);
+  if(dekning>0.5 && !batEnabled) fl7.push(['info','i','Egetforbrugsandel over 50% uden batteri er optimistisk — kontrollér forbrugsprofilen matcher produktionstidspunkter.']);
+  if(paybackYear===null) fl7.push(['warn','!','Tilbagebetaling sker ikke inden for 25 år med de angivne forudsætninger.']);
+  else fl7.push(['ok','✓',`Beregnet tilbagebetalingstid: ${paybackYear} år (simpel model, uden prisstigning eller diskontering).`]);
+  $('flags7').innerHTML = fl7.map(([c,ic,t])=>`<div class="flag ${c}"><span class="ic">${ic}</span><span>${t}</span></div>`).join('');
+}
+
+/* ================= INIT ================= */
+renderPanelCards();
+renderMountCards();
+renderDiscCards();
+buildTimetable(DEFAULT_HOURS);
+selectPanel('p2');
+selectMount('m1');
+selectDisc('d1');
+calcAll();
+
+/* ================= EXCEL EXPORT ================= */
+function exportExcel(){
+  const proj = $('proj_navn').value || 'Solcelleprojekt';
+  const today = new Date().toLocaleDateString('da-DK');
+  const g = id => $(id) ? $(id).value : '';
+  const txt = id => $(id) ? $(id).textContent : '';
+  const wb = XLSX.utils.book_new();
+
+  const wsForside = XLSX.utils.aoa_to_sheet([
+    ['SOLCELLEPROJEKT'],[proj],[''],
+    ['Dato', today],['Udarbejdet af','El-afdelingen'],[''],
+    ['RESULTATOVERSIGT'],
+    ['Anlaegsstoerrelse (kWp)', txt('r_kwp')],
+    ['Antal paneler', g('n_paneler')],
+    ['Anlaegsfaktor A', txt('r_A')],
+    ['Aarsproduktion', txt('r_eaar')],
+    ['Anlaeggets vaegt', txt('r_vaegt_total')],
+    ['Vaegt pr. m2', txt('r_vaegt_m2')],
+    ['Samlet anlaegspris', txt('b_total')],
+    ['Tilbagebetalingstid', txt('r_payback')],
+    ['CO2-besparelse/aar', txt('r_co2save')],
+  ]);
+  wsForside['!cols']=[{wch:28},{wch:40}];
+  XLSX.utils.book_append_sheet(wb, wsForside, 'Forside');
+
+  const wsTag = XLSX.utils.aoa_to_sheet([
+    ['TAGFLADE & PANELPAKNING',''],[''],
+    ['Tagbredde (cm)', +g('t_bredde')],
+    ['Taghaeldning (grader)', +g('t_haeld')],
+    ['Taghoejde langs skraaning (cm)', +g('t_hoejde_flad')],
+    ['Paneler pr. raekke', txt('r_perrow')],
+    ['Antal raekker', txt('r_rows')],
+    ['Kapacitet i alt', txt('r_cap')],
+    ['Antal paneler installeret', +g('n_paneler')],
+    [''],
+    ['Solcellemodul (STC)',''],
+    ['Pmax (Wp)', +g('m_pmax')],
+    ['Uoc (V)', +g('m_uoc')],
+    ['Isc (A)', +g('m_isc')],
+    ['Panelmaal H (cm)', +g('p_h')],
+    ['Panelvaegt (kg)', +g('p_vaegt')],
+    [''],
+    ['Anlaegsstoerrelse P (kWp)', txt('r_kwp')],
+  ]);
+  wsTag['!cols']=[{wch:38},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, wsTag, 'Tagflade');
+
+  const wsA = XLSX.utils.aoa_to_sheet([
+    ['ANLAEGSFAKTOR  A = f0 x fskygge x fsol',''],[''],
+    ['f0 - Orienteringsfaktor', txt('r_fo')],
+    ['fskygge - Skyggefaktor', txt('r_fs')],
+    ['fsol - Solskinstimefaktor', txt('r_ft')],
+    ['Anlaegsfaktor A (samlet)', txt('r_A')],
+    [''],
+    ['Eaar - beregnet aarsproduktion (kWh/aar)', txt('r_eaar')],
+  ]);
+  wsA['!cols']=[{wch:38},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, wsA, 'Anlaegsfaktor');
+
+  const wsS = XLSX.utils.aoa_to_sheet([
+    ['STRENGDESIGN & INVERTER',''],[''],
+    ['Antal strenge', +g('i_strenge')],
+    ['Paneler pr. streng', txt('r_pps')],
+    ['Inverter maerke/model', g('i_navn')],
+    ['Inverter maks. spaending (V)', +g('i_umax')],
+    ['Inverter maks. stroem (A)', +g('i_imax')],
+    ['Strengspaending (V)', txt('r_ustreng')],
+    ['Strengstroem (A)', txt('r_istreng')],
+  ]);
+  wsS['!cols']=[{wch:38},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, wsS, 'Streng-Inverter');
+
+  const mountObj = MOUNTS.find(m=>m.id===selectedMount) || MOUNTS[0];
+  const wsM = XLSX.utils.aoa_to_sheet([
+    ['MONTERING & VAEGT',''],[''],
+    ['Valgt monteringssystem', mountObj.navn],
+    ['Panelvaegt (kg/stk)', +g('w_panel')],
+    ['Beslag (kg/panel)', +g('w_beslag')],
+    ['Ballast (kg/m2)', mountObj.ballast ? +g('w_ballast_kgm2') : 0],
+    [''],
+    ['Total vaegt (kg)', txt('r_vaegt_total')],
+    ['Vaegt pr. m2 tag', txt('r_vaegt_m2')],
+    ['Paneler + beslag (kg)', txt('r_vaegt_pb')],
+    ['Ballast (kg)', txt('r_vaegt_ballast')],
+  ]);
+  wsM['!cols']=[{wch:32},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, wsM, 'Montering-Vaegt');
+
+  const discObj = DISC.find(d=>d.id===selectedDisc) || DISC[0];
+  const wsEl = XLSX.utils.aoa_to_sheet([
+    ['ELSIKKERHED',''],[''],
+    ['Produktionsmaaler', $('meter-result').textContent.trim()],
+    ['RCD-dokumentation', $('e_rcd_doc').selectedOptions[0].text],
+    ['Tilslutningsafbryder', discObj.navn],
+    ['Anlaegstype', $('e_anlaegstype').selectedOptions[0].text],
+    ['Estimeret tilslutningsgebyr', txt('r_tilslgebyr')],
+  ]);
+  wsEl['!cols']=[{wch:30},{wch:45}];
+  XLSX.utils.book_append_sheet(wb, wsEl, 'Elsikkerhed');
+
+  const ttRows=[['Tidsrum','Forbrug (kWh)']];
+  $('tt-body').querySelectorAll('tr').forEach(tr=>{
+    ttRows.push([tr.cells[0].textContent, +tr.cells[1].querySelector('input').value]);
+  });
+  const batEnabled = $('bat_enabled').checked;
+  const wsF = XLSX.utils.aoa_to_sheet([
+    ['FORBRUG & EGETFORBRUG',''],[''],
+    ...ttRows,
+    ['Sum pr. doegn', txt('r_dogn')],
+    [''],
+    ['Aarligt elforbrug (kWh/aar)', +g('c_aarlig')],
+    ['Batteri inkluderet', batEnabled?'Ja':'Nej'],
+    ['Batterikapacitet (kWh)', batEnabled? +g('bat_kwh') : 0],
+    ['Egetforbrugsandel anvendt (%)', batEnabled? +g('c_egetf_bat') : +g('c_egetf')],
+    ['Aarsproduktion (kWh/aar)', txt('r_eaar')],
+    ['Egetforbrug (kWh/aar)', txt('r_egetf_kwh')],
+    ['Solgt til net (kWh/aar)', txt('r_eksport')],
+    ['Daekningsgrad (%)', txt('r_dekning')],
+  ]);
+  wsF['!cols']=[{wch:30},{wch:16}];
+  XLSX.utils.book_append_sheet(wb, wsF, 'Forbrug');
+
+  const paybackRows=[];
+  $('payback-body').querySelectorAll('tr').forEach(tr=>{
+    const c=tr.cells;
+    paybackRows.push([+c[0].textContent, c[1].textContent, c[2].textContent, c[3].textContent]);
+  });
+  const wsE = XLSX.utils.aoa_to_sheet([
+    ['OEKONOMI & BUSINESS CASE',''],[''],
+    ['Eltakst koeb (kr/kWh)', +g('e_kob')],
+    ['Eltakst salg (kr/kWh)', +g('e_salg')],
+    ['CO2-faktor el (kg/kWh)', +g('e_co2')],
+    [''],
+    ['Paneler', txt('b_panel')],
+    ['Inverter', txt('b_inv')],
+    ['Monteringssystem', txt('b_mountsys')],
+    ['Batteri', txt('b_bat')],
+    ['Montage', txt('b_mont')],
+    ['Tilslutningsgebyr', txt('b_tilsl')],
+    ['Samlet anlaegspris', txt('b_total')],
+    [''],
+    ['Aarlig besparelse, aar 1', txt('r_yearsave')],
+    ['Tilbagebetalingstid', txt('r_payback')],
+    ['CO2-besparelse/aar', txt('r_co2save')],
+    ['CO2-besparelse over 25 aar', txt('r_co2_25')],
+    [''],
+    ['25-AARS AKKUMULERET OVERSIGT',''],
+    ['Aar','Med solceller (akk.)','Uden (akk.)','Besparelse'],
+    ...paybackRows,
+  ]);
+  wsE['!cols']=[{wch:30},{wch:20},{wch:20},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, wsE, 'Oekonomi');
+
+  XLSX.writeFile(wb, (proj.replace(/[^\w -]/g,'').trim()||'Solcelleprojekt')+'.xlsx');
+}
+</script>
+</body>
+</html>
