@@ -148,6 +148,23 @@
   footer{margin-top:30px;padding-top:20px;border-top:1px solid var(--line);font-size:11px;color:#5f779c;font-family:var(--mono);line-height:1.7}
   footer b{color:var(--ink-dim)}
   .pill{display:inline-block;font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid var(--line);color:var(--ink-dim);margin-right:6px}
+    /* Tarif-display (Step 7) */
+  .tariff-display{display:flex;align-items:center;gap:10px;background:#0c1626;border:1px solid var(--line);border-radius:9px;padding:8px 11px}
+  .tariff-value{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--sun);flex:1}
+  .tariff-value small{font-size:11px;color:var(--ink-dim);font-weight:400;margin-left:3px}
+  .tariff-toggle{background:transparent;border:1px solid var(--line);color:var(--ink-dim);font-family:var(--sans);font-size:11px;font-weight:600;padding:5px 9px;border-radius:6px;cursor:pointer;transition:.15s}
+  .tariff-toggle:hover{border-color:var(--sun);color:var(--ink)}
+  .tariff-details{margin-top:10px;background:#0a1220;border:1px solid var(--line);border-radius:9px;padding:12px 14px;font-family:var(--mono);font-size:12px}
+  .tariff-row{display:flex;justify-content:space-between;padding:5px 0;color:var(--ink-dim);border-bottom:1px dashed #1a2d45}
+  .tariff-row span:last-child{color:var(--ink);font-weight:600}
+  .tariff-row.subtotal{border-bottom:1px solid var(--line);margin-top:3px;color:var(--ink)}
+  .tariff-row.total{border-bottom:none;border-top:1px solid var(--sun);margin-top:3px;padding-top:7px;font-weight:700}
+  .tariff-row.total span{color:var(--sun) !important;font-size:13px}
+  .tariff-meta{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:10.5px;color:#5f779c;line-height:1.7;font-family:var(--sans)}
+  .tariff-meta b{color:var(--ink-dim)}
+  .tariff-meta a{color:var(--grid);text-decoration:none}
+  .tariff-meta a:hover{text-decoration:underline}
+  .tariff-noter{margin-top:5px;font-style:italic;color:#7088a8}
 </style>
 </head>
 <body>
@@ -541,7 +558,31 @@
                   <option value="DK2">DK2 — Østdanmark</option>
                 </select>
               </div>
-              <div class="field"><label>Tillæg <span class="hint">moms + afgift + nettarif</span></label><div class="unit"><input class="input" id="spot_tillaeg" type="number" value="1.30" step="0.05"><span class="u">kr/kWh</span></div></div>
+              <div class="field">
+                <label>Tillæg <span class="hint">automatisk — moms + afgift + tariffer</span></label>
+                <div class="tariff-display">
+                  <div class="tariff-value"><span id="tariff_total">—</span> <small>kr/kWh</small></div>
+                  <button type="button" class="tariff-toggle" onclick="toggleTariffDetails()">
+                    <span id="tariff_toggle_label">▸ Vis detaljer</span>
+                  </button>
+                </div>
+                <input type="hidden" id="spot_tillaeg" value="1.30">
+              </div>
+            </div>
+            <div id="tariff_details" class="tariff-details" style="display:none">
+              <div class="tariff-row"><span>Energinet — systemtarif</span><span id="td_sys">—</span></div>
+              <div class="tariff-row"><span>Energinet — transmissionstarif</span><span id="td_trans">—</span></div>
+              <div class="tariff-row"><span>Energinet — balancetarif</span><span id="td_bal">—</span></div>
+              <div class="tariff-row"><span>Statslig elafgift</span><span id="td_afgift">—</span></div>
+              <div class="tariff-row"><span>Lokal nettarif (landsgns.)</span><span id="td_net">—</span></div>
+              <div class="tariff-row subtotal"><span>Subtotal ekskl. moms</span><span id="td_subtotal">—</span></div>
+              <div class="tariff-row"><span>Moms (25%)</span><span id="td_moms">—</span></div>
+              <div class="tariff-row total"><span>Samlet tillæg</span><span id="td_total">—</span></div>
+              <div class="tariff-meta">
+                <div><b>Kilde:</b> <a id="td_kilde" href="#" target="_blank" rel="noopener">Energinet.dk</a></div>
+                <div><b>Opdateret:</b> <span id="td_opdateret">—</span></div>
+                <div id="td_noter" class="tariff-noter"></div>
+              </div>
             </div>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
               <button class="btn" id="spot_btn" onclick="hentSpotpris()" type="button">⚡ Hent dagsaktuel pris</button>
@@ -1202,6 +1243,58 @@ function calcAll(){
   $('flags7').innerHTML = fl7.map(([c,ic,t])=>`<div class="flag ${c}"><span class="ic">${ic}</span><span>${t}</span></div>`).join('');
 }
 
+/* ================= TARIFFER (auto-hentet) ================= */
+async function loadTariffer(){
+  try {
+    const res = await fetch('./tariffer.json?_=' + Date.now());
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const t = await res.json();
+    const k = t.komponenter_kr_kwh;
+    const sys = k.energinet_systemtarif || 0;
+    const trans = k.energinet_transmissionstarif || 0;
+    const bal = k.energinet_balancetarif_forbrug || 0;
+    const afgift = k.elafgift_statslig || 0;
+    const net = k.lokal_nettarif_gennemsnit || 0;
+    const momsPct = (t.moms_pct || 25) / 100;
+    const subtotal = sys + trans + bal + afgift + net;
+    const moms = subtotal * momsPct;
+    const total = subtotal + moms;
+    $('spot_tillaeg').value = total.toFixed(3);
+    $('tariff_total').textContent = fmt(total, 2);
+    $('td_sys').textContent = fmt(sys, 3) + ' kr/kWh';
+    $('td_trans').textContent = fmt(trans, 3) + ' kr/kWh';
+    $('td_bal').textContent = fmt(bal, 4) + ' kr/kWh';
+    $('td_afgift').textContent = fmt(afgift, 3) + ' kr/kWh';
+    $('td_net').textContent = fmt(net, 3) + ' kr/kWh';
+    $('td_subtotal').textContent = fmt(subtotal, 3) + ' kr/kWh';
+    $('td_moms').textContent = fmt(moms, 3) + ' kr/kWh';
+    $('td_total').textContent = fmt(total, 2) + ' kr/kWh';
+    $('td_kilde').href = t.kilde || '#';
+    $('td_kilde').textContent = (t.kilde || '').replace(/^https?:\/\//, '').replace(/\/$/, '') || 'Energinet.dk';
+    $('td_opdateret').textContent = t.opdateret || 'ukendt';
+    if(t.noter) $('td_noter').textContent = t.noter;
+  } catch(e) {
+    $('tariff_total').textContent = '1,30';
+    $('spot_tillaeg').value = '1.30';
+    const det = $('tariff_details');
+    det.style.display = 'block';
+    det.innerHTML = `<div style="color:var(--bad);font-family:var(--sans);font-size:12px">
+      ⚠ Kunne ikke hente <code>tariffer.json</code> (${e.message}). 
+      Bruger standard-tillæg 1,30 kr/kWh. Tjek at filen ligger i samme mappe som denne side.
+    </div>`;
+  }
+}
+function toggleTariffDetails(){
+  const det = $('tariff_details');
+  const lbl = $('tariff_toggle_label');
+  if(det.style.display === 'none'){
+    det.style.display = 'block';
+    lbl.textContent = '▾ Skjul detaljer';
+  } else {
+    det.style.display = 'none';
+    lbl.textContent = '▸ Vis detaljer';
+  }
+}
 /* ================= INIT ================= */
 renderPanelCards();
 renderMountCards();
@@ -1210,6 +1303,7 @@ buildTimetable(DEFAULT_HOURS);
 selectPanel('p2');
 selectMount('m1');
 selectDisc('d1');
+loadTariffer();
 calcAll();
 
 /* ================= EXCEL EXPORT ================= */
