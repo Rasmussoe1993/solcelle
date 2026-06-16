@@ -202,11 +202,12 @@
   <div class="stepview on" id="s1">
 
     <div class="house-wrap">
+      <div style="font-size:11px;color:var(--ink-dim);margin-bottom:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em"><span style="color:var(--sun)">▲ TOPVIEW (set fra oven)</span></div>
       <svg class="house-svg" id="house-svg" viewBox="0 0 760 340" width="100%" height="340" xmlns="http://www.w3.org/2000/svg"></svg>
       <div class="house-legend">
         <span><i class="sw" style="background:#1c2f4d"></i> Mur/gavl</span>
         <span><i class="sw" style="background:#223a5e;border:1px solid #3ad6c0"></i> Tagflade</span>
-        <span><i class="sw" style="background:#284167;border:1px solid #3ad6c0"></i> Paneler (estimat)</span>
+        <span><i class="sw" style="background:#284167;border:1px solid #3ad6c0"></i> Paneler (valgte <span id="house_panel_count">0</span> stk)</span>
       </div>
     </div>
 
@@ -801,7 +802,7 @@ function selectDisc(id){
 }
 
 /* ================= HUSDIAGRAM (SVG) ================= */
-function drawHouse(bredde_cm, hoejde_cm, haeld, perRow, rows){
+function drawHouse(bredde_cm, hoejde_cm, haeld, perRow, rows, actualPanels){
   const svg = $('house-svg');
   const vw=760, vh=340;
   const houseW = 420, houseBaseY = 270, gavlH = 90, roofH = 110;
@@ -812,7 +813,7 @@ function drawHouse(bredde_cm, hoejde_cm, haeld, perRow, rows){
   const roofSkew = Math.min(haeld*1.2, 60);
 
   let panelsSvg = '';
-  if(perRow>0 && rows>0){
+  if(perRow>0 && rows>0 && actualPanels>0){
     const padX = 30, padY = 14;
     const innerW = houseW - 2*padX;
     const innerH = roofH - 2*padY;
@@ -820,12 +821,22 @@ function drawHouse(bredde_cm, hoejde_cm, haeld, perRow, rows){
     const cellH = innerH / Math.min(rows, 6);
     const showCols = Math.min(perRow, 14);
     const showRows = Math.min(rows, 6);
-    for(let r=0;r<showRows;r++){
-      for(let c=0;c<showCols;c++){
+    
+    // Tegn kun det faktisk valgte antal paneler, startende fra venstre og toppen
+    const totalToShow = Math.min(actualPanels, showRows * showCols);
+    let panelCount = 0;
+    for(let r=0;r<showRows && panelCount<totalToShow;r++){
+      for(let c=0;c<showCols && panelCount<totalToShow;c++){
         const x = ox + padX + c*cellW + 1;
         const y = roofTopY + padY + r*cellH + 1;
         panelsSvg += `<rect class="panel-row" x="${x}" y="${y}" width="${cellW-2}" height="${cellH-2}" rx="1"/>`;
+        panelCount++;
       }
+    }
+    
+    // Hvis der er flere paneler end der er plads til at vise (14×6=84), tegn en "..." indikator
+    if(actualPanels > totalToShow){
+      panelsSvg += `<text style="fill:var(--ink-dim);font-family:var(--mono);font-size:10px;font-weight:700" x="${ox+houseW/2}" y="${roofTopY+roofH+20}" text-anchor="middle">... og ${actualPanels-totalToShow} mere på andre flader</text>`;
     }
   }
 
@@ -1047,9 +1058,9 @@ function calcAll(){
   $('r_rows').textContent = rows>0?rows:0;
   $('r_cap').textContent = cap+' stk';
 
-  drawHouse(tBredde, tHoejdeMedHaeld, tHaeld, Math.max(perRow,0), Math.max(rows,0));
-
   const nPaneler = Math.max(+$('n_paneler').value||0,0);
+  drawHouse(tBredde, tHoejdeMedHaeld, tHaeld, Math.max(perRow,0), Math.max(rows,0), nPaneler);
+  $('house_panel_count').textContent = nPaneler;
   const pmax = +$('m_pmax').value||0;
   const kWp = nPaneler*pmax/1000;
   $('r_kwp').innerHTML = fmt(kWp,2)+' kWp';
